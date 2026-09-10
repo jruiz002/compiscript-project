@@ -1,0 +1,49 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Entornos virtuales ---
+venv/
+.venv/
+env/
+ENV/
+
+# --- Testing / cobertura ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# --- Variables de entorno / secretos ---
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# --- Editores / IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Sistema operativo ---
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log
+
+# --- Salidas locales de compilación (no las esperadas en tests/cases) ---
+*.tac.out
+/scratch/
+
+# --- Documentación Antigravity ---
+CLAUDE.md
+FEATURES.md
