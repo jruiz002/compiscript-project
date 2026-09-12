@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Compiscript IDE — Analizador semántico interactivo para el lenguaje Compiscript">
+  <title>Compiscript IDE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>⚙</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ── TOP BAR ─────────────────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <span class="logo-icon">⚙</span>
+      <span class="logo-text">Compiscript <span class="logo-sub">IDE</span></span>
+    </div>
+    <nav class="topbar-nav">
+      <button class="nav-btn active" id="btnEditor" onclick="switchTab('editor')">Editor</button>
+      <button class="nav-btn" id="btnSymbols" onclick="switchTab('symbols')">Tabla de Símbolos</button>
+      <button class="nav-btn" id="btnAst" onclick="switchTab('ast')">AST</button>
+    </nav>
+  </div>
+  <div class="topbar-right">
+    <div class="status-pill" id="statusPill">
+      <span class="status-dot idle"></span>
+      <span id="statusText">Listo</span>
+    </div>
+    <button class="run-btn" id="runBtn" onclick="compile()">
+      <span class="run-icon">▶</span> Compilar
+    </button>
+  </div>
+</header>
+
+<!-- ── MAIN LAYOUT ─────────────────────────────────────────────────── -->
+<main class="layout">
+
+  <!-- ── LEFT: Code Editor ─── -->
+  <section class="panel panel-editor" id="panelEditor">
+    <div class="panel-header">
+      <span class="panel-title">📝 Editor</span>
+      <div class="panel-actions">
+        <button class="icon-btn" id="btnClear" title="Limpiar editor" onclick="clearEditor()">✕</button>
+        <select class="example-select" id="exampleSelect" onchange="loadExample()">
+          <option value="">— Cargar ejemplo —</option>
+          <option value="variables">Variables y constantes</option>
+          <option value="funciones">Funciones y recursión</option>
+          <option value="clases">Clases y herencia</option>
+          <option value="arrays">Arreglos y foreach</option>
+          <option value="errores">Ejemplo con errores</option>
+        </select>
+      </div>
+    </div>
+    <div class="editor-wrapper">
+      <div class="line-numbers" id="lineNumbers"></div>
+      <textarea id="codeEditor" class="code-textarea" spellcheck="false"
+        placeholder="// Escribe tu código Compiscript aquí...
+let x: integer = 10;
+let msg: string = &quot;Hola Mundo&quot;;
+print(msg);"
+      ></textarea>
+    </div>
+    <!-- Error / Warning annotations at bottom -->
+    <div class="diagnostics-bar" id="diagnosticsBar">
+      <span class="diag-count" id="diagCount">Presiona Compilar para analizar</span>
+    </div>
+  </section>
+
+  <!-- ── RIGHT PANELS ─── -->
+  <section class="panel panel-right">
+
+    <!-- ERRORS / WARNINGS TAB -->
+    <div class="right-tab active" id="tabErrors">
+      <div class="panel-header">
+        <span class="panel-title">🔍 Diagnósticos</span>
+        <span class="badge" id="errorBadge">0</span>
+      </div>
+      <div class="diag-list" id="diagList">
+        <div class="empty-state">
+          <div class="empty-icon">🔬</div>
+          <p>Los errores y advertencias semánticos aparecerán aquí.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SYMBOL TABLE TAB -->
+    <div class="right-tab hidden" id="tabSymbols">
+      <div class="panel-header">
+        <span class="panel-title">📊 Tabla de Símbolos</span>
+        <button class="icon-btn" id="btnExpandAll" onclick="expandAllScopes()">⊞</button>
+      </div>
+      <div class="symbol-tree" id="symbolTree">
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <p>La tabla de símbolos se construirá al compilar.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- AST TAB -->
+    <div class="right-tab hidden" id="tabAst">
+      <div class="panel-header">
+        <span class="panel-title">🌳 Árbol Sintáctico (AST)</span>
+        <div class="panel-actions">
+          <button class="icon-btn" onclick="zoomAst(1.2)">+</button>
+          <button class="icon-btn" onclick="zoomAst(0.8)">−</button>
+          <button class="icon-btn" onclick="resetAstZoom()">↺</button>
+        </div>
+      </div>
+      <div class="ast-container" id="astContainer">
+        <div class="empty-state">
+          <div class="empty-icon">🌲</div>
+          <p>El árbol sintáctico se mostrará al compilar.</p>
+        </div>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<!-- ── BOTTOM STATUS BAR ───────────────────────────────────────────── -->
+<footer class="statusbar">
+  <span id="sbCursor">Ln 1, Col 1</span>
+  <span class="sb-sep">|</span>
+  <span id="sbLang">Compiscript</span>
+  <span class="sb-sep">|</span>
+  <span id="sbMode">UTF-8</span>
+  <span class="sb-fill"></span>
+  <span id="sbErrors" class="sb-errors">0 errores</span>
+  <span class="sb-sep">|</span>
+  <span id="sbWarnings" class="sb-warnings">0 advertencias</span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
