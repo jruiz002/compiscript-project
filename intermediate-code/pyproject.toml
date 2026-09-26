@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "compiscript"
+version = "0.1.0"
+description = "Compiscript — Fase 2: Generacion de Codigo Intermedio (TAC)"
+requires-python = ">=3.10"
+dependencies = [
+    "antlr4-python3-runtime==4.13.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+ide = ["streamlit>=1.35", "streamlit-ace>=0.1.1"]
+
+[project.scripts]
+compiscript = "compiscript.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

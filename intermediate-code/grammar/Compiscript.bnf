@@ -1,0 +1,154 @@
+; Compiscript — gramática en BNF (traducción mecánica de Compiscript.g4).
+; ε denota la cadena vacía. Los terminales van entre comillas.
+; Fuente de verdad: Compiscript.g4 — si difieren, el .g4 manda.
+
+<program> ::= <statement-list>
+<statement-list> ::= <statement> <statement-list> | ε
+
+<statement> ::= <variable-declaration>
+              | <constant-declaration>
+              | <assignment>
+              | <function-declaration>
+              | <class-declaration>
+              | <expression-statement>
+              | <print-statement>
+              | <block>
+              | <if-statement>
+              | <while-statement>
+              | <do-while-statement>
+              | <for-statement>
+              | <foreach-statement>
+              | <try-catch-statement>
+              | <switch-statement>
+              | <break-statement>
+              | <continue-statement>
+              | <return-statement>
+
+<block> ::= "{" <statement-list> "}"
+
+<variable-declaration> ::= <let-or-var> <identifier> <type-annotation-opt> <initializer-opt> ";"
+<let-or-var> ::= "let" | "var"
+<type-annotation-opt> ::= <type-annotation> | ε
+<initializer-opt> ::= <initializer> | ε
+
+<constant-declaration> ::= "const" <identifier> <type-annotation-opt> "=" <expression> ";"
+
+<type-annotation> ::= ":" <type>
+<initializer> ::= "=" <expression>
+
+<assignment> ::= <identifier> "=" <expression> ";"
+              | <expression> "." <identifier> "=" <expression> ";"
+
+<expression-statement> ::= <expression> ";"
+<print-statement> ::= "print" "(" <expression> ")" ";"
+
+<if-statement> ::= "if" "(" <expression> ")" <block> <else-clause-opt>
+<else-clause-opt> ::= "else" <block> | ε
+<while-statement> ::= "while" "(" <expression> ")" <block>
+<do-while-statement> ::= "do" <block> "while" "(" <expression> ")" ";"
+<for-statement> ::= "for" "(" <for-init> <expression-opt> ";" <expression-opt> ")" <block>
+<for-init> ::= <variable-declaration> | <assignment> | ";"
+<expression-opt> ::= <expression> | ε
+<foreach-statement> ::= "foreach" "(" <identifier> "in" <expression> ")" <block>
+<break-statement> ::= "break" ";"
+<continue-statement> ::= "continue" ";"
+<return-statement> ::= "return" <expression-opt> ";"
+
+<try-catch-statement> ::= "try" <block> "catch" "(" <identifier> ")" <block>
+
+<switch-statement> ::= "switch" "(" <expression> ")" "{" <switch-case-list> <default-case-opt> "}"
+<switch-case-list> ::= <switch-case> <switch-case-list> | ε
+<switch-case> ::= "case" <expression> ":" <statement-list>
+<default-case-opt> ::= <default-case> | ε
+<default-case> ::= "default" ":" <statement-list>
+
+<function-declaration> ::= "function" <identifier> "(" <parameters-opt> ")" <return-type-opt> <block>
+<return-type-opt> ::= ":" <type> | ε
+<parameters-opt> ::= <parameters> | ε
+<parameters> ::= <parameter> <parameters-tail>
+<parameters-tail> ::= "," <parameter> <parameters-tail> | ε
+<parameter> ::= <identifier> <type-annotation-opt>
+
+<class-declaration> ::= "class" <identifier> <superclass-opt> "{" <class-member-list> "}"
+<superclass-opt> ::= ":" <identifier> | ε
+<class-member-list> ::= <class-member> <class-member-list> | ε
+<class-member> ::= <function-declaration> | <variable-declaration> | <constant-declaration>
+
+; --- Expresiones (precedencia de menor a mayor) ---
+
+<expression> ::= <assignment-expr>
+
+<assignment-expr> ::= <left-hand-side> "=" <assignment-expr>
+                    | <left-hand-side> "." <identifier> "=" <assignment-expr>
+                    | <conditional-expr>
+
+<conditional-expr> ::= <logical-or-expr> <ternary-tail-opt>
+<ternary-tail-opt> ::= "?" <expression> ":" <expression> | ε
+
+<logical-or-expr> ::= <logical-and-expr> <logical-or-tail>
+<logical-or-tail> ::= "||" <logical-and-expr> <logical-or-tail> | ε
+
+<logical-and-expr> ::= <equality-expr> <logical-and-tail>
+<logical-and-tail> ::= "&&" <equality-expr> <logical-and-tail> | ε
+
+<equality-expr> ::= <relational-expr> <equality-tail>
+<equality-tail> ::= <eq-op> <relational-expr> <equality-tail> | ε
+<eq-op> ::= "==" | "!="
+
+<relational-expr> ::= <additive-expr> <relational-tail>
+<relational-tail> ::= <rel-op> <additive-expr> <relational-tail> | ε
+<rel-op> ::= "<" | "<=" | ">" | ">="
+
+<additive-expr> ::= <multiplicative-expr> <additive-tail>
+<additive-tail> ::= <add-op> <multiplicative-expr> <additive-tail> | ε
+<add-op> ::= "+" | "-"
+
+<multiplicative-expr> ::= <unary-expr> <multiplicative-tail>
+<multiplicative-tail> ::= <mul-op> <unary-expr> <multiplicative-tail> | ε
+<mul-op> ::= "*" | "/" | "%"
+
+<unary-expr> ::= <unary-op> <unary-expr> | <primary-expr>
+<unary-op> ::= "-" | "!"
+
+<primary-expr> ::= <literal-expr> | <left-hand-side> | "(" <expression> ")"
+
+<literal-expr> ::= <literal> | <array-literal> | "null" | "true" | "false"
+
+<left-hand-side> ::= <primary-atom> <suffix-op-list>
+<suffix-op-list> ::= <suffix-op> <suffix-op-list> | ε
+
+<primary-atom> ::= <identifier>
+                 | "new" <identifier> "(" <arguments-opt> ")"
+                 | "this"
+
+<suffix-op> ::= "(" <arguments-opt> ")"
+             | "[" <expression> "]"
+             | "." <identifier>
+
+<arguments-opt> ::= <arguments> | ε
+<arguments> ::= <expression> <arguments-tail>
+<arguments-tail> ::= "," <expression> <arguments-tail> | ε
+
+<array-literal> ::= "[" <array-elements-opt> "]"
+<array-elements-opt> ::= <expression> <arguments-tail> | ε
+
+; --- Tipos ---
+
+<type> ::= <base-type> <array-suffix-list>
+<array-suffix-list> ::= "[" "]" <array-suffix-list> | ε
+<base-type> ::= "boolean" | "integer" | "float" | "string" | <identifier>
+
+; --- Léxico ---
+
+<literal> ::= <integer-literal> | <float-literal> | <string-literal>
+<integer-literal> ::= <digit> <integer-literal-tail>
+<integer-literal-tail> ::= <digit> <integer-literal-tail> | ε
+<float-literal> ::= <integer-literal> "." <integer-literal>
+<string-literal> ::= '"' <string-char-list> '"'
+<string-char-list> ::= <string-char> <string-char-list> | ε
+<identifier> ::= <id-start> <id-char-list>
+<id-start> ::= <letter> | "_"
+<id-char-list> ::= <id-char> <id-char-list> | ε
+<id-char> ::= <letter> | <digit> | "_"
+<digit> ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+<letter> ::= "a" | "b" | "..." | "z" | "A" | "B" | "..." | "Z"
