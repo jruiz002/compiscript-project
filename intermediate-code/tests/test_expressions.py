@@ -14,13 +14,13 @@ def test_left_associativity_of_subtraction():
 
 
 def test_relational_and_equality():
-    assert run_source("print(3 < 5);\n") == "1\n"
-    assert run_source("print(3 == 3);\n") == "1\n"
-    assert run_source("print(3 != 3);\n") == "0\n"
+    assert run_source("print(3 < 5);\n") == "true\n"
+    assert run_source("print(3 == 3);\n") == "true\n"
+    assert run_source("print(3 != 3);\n") == "false\n"
 
 
 def test_unary_not_and_neg():
-    assert run_source("print(!(3 < 5));\n") == "0\n"
+    assert run_source("print(!(3 < 5));\n") == "false\n"
     assert run_source("print(-5 + 8);\n") == "3\n"
 
 
@@ -36,7 +36,7 @@ def test_short_circuit_or_does_not_evaluate_right_side():
         "function division(): boolean { return (1 / 0) > 0; }\n"
         "print(siempreTrue() || division());\n"
     )
-    assert out == "1\n"
+    assert out == "true\n"
 
 
 def test_short_circuit_and_does_not_evaluate_right_side():
@@ -45,7 +45,12 @@ def test_short_circuit_and_does_not_evaluate_right_side():
         "function division(): boolean { return (1 / 0) > 0; }\n"
         "print(siempreFalse() && division());\n"
     )
-    assert out == "0\n"
+    assert out == "false\n"
+
+
+def test_booleans_print_and_concat_as_true_false():
+    src = 'let c: boolean = true; print("v=" + c); print(!c);\n'
+    assert run_source(src) == "v=true\nfalse\n"
 
 
 def test_no_live_temps_after_statement_assertion_holds():

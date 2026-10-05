@@ -214,6 +214,9 @@ endfunc f_crearContador__siguiente
   cualquier parte del programa comparten `str_N`).
 - `string + X` (o `X + string`): si `X` no es de tipo `string` (incluye `any`, p.ej. la
   variable de un `catch`) se convierte con `tostr` y luego se `concat`ena.
+- Booleanos (`1`/`0` en TAC) que se imprimen o concatenan se convierten antes a `"true"`/
+  `"false"` con un salto (`ifFalse b goto Lf; t = str_true; goto Le; Lf: t = str_false; Le:`),
+  para que la salida coincida con TypeScript sin agregar un opcode.
 - `print x` imprime el valor tal cual (el intérprete usa `str()`); no hay opcodes separados
   `print_int`/`print_str` — no hicieron falta porque `tostr`/`str()` ya cubren todos los casos.
 
@@ -256,7 +259,11 @@ camino del generador.)
 ## 10. Supuestos y decisiones de diseño
 
 - Palabra de 4 bytes (`WORD_SIZE`), arquitectura destino asumida tipo MIPS para la Fase 3.
-- Booleanos representados como `1`/`0`; `null` es `0`.
+- Booleanos representados como `1`/`0`; `null` es `0`. Solo al imprimir/concatenar un booleano se
+  muestra como `true`/`false` (ver §8).
+- **Sin hoisting:** una función debe declararse antes de usarse (igual que las
+  variables). TypeScript sí eleva las declaraciones `function`; aquí se prefirió un análisis de
+  una sola pasada y la regla uniforme "declarar antes de usar".
 - `switch` hace fallthrough (semántica TS/C) salvo `break` explícito.
 - **`float` (decisión tomada):** la gramática de este proyecto sí incluye
   `float` (`FloatLiteral`, `baseType` con `'float'`), a diferencia del supuesto original de que

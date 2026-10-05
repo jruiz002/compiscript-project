@@ -46,6 +46,10 @@ def _is_string_type(t: Optional[CompiscriptType]) -> bool:
     return t is not None and t.kind == TypeKind.STRING
 
 
+def _is_bool_type(t: Optional[CompiscriptType]) -> bool:
+    return t is not None and t.kind == TypeKind.BOOLEAN
+
+
 class TACGenerator:
     def __init__(self, analyzer) -> None:
         self.types = analyzer.node_types
@@ -207,6 +211,8 @@ class TACGenerator:
 
     def _gen_print(self, ctx: CompiscriptParser.PrintStatementContext) -> None:
         value = self._gen_expr(ctx.expression())
+        if _is_bool_type(self.types.get(ctx.expression())):
+            value = self._bool_to_str(value)
         self._emit(OpCode.PRINT, value)
         self.temps.release(value)
 
@@ -504,9 +510,9 @@ class TACGenerator:
 
     def _emit_concat(self, left, left_type, right, right_type, dest) -> Operand:
         if not _is_string_type(left_type):
-            left = self._emit_tostr(left)
+            left = self._bool_to_str(left) if _is_bool_type(left_type) else self._emit_tostr(left)
         if not _is_string_type(right_type):
-            right = self._emit_tostr(right)
+            right = self._bool_to_str(right) if _is_bool_type(right_type) else self._emit_tostr(right)
         self.temps.release(left)
         self.temps.release(right)
         target = dest if dest is not None else self.temps.new_temp()
@@ -517,6 +523,21 @@ class TACGenerator:
         self.temps.release(value)
         t = self.temps.new_temp()
         self._emit(OpCode.TOSTR, value, None, t)
+        return t
+
+    def _bool_to_str(self, value: Operand) -> Operand:
+        """Booleanos son 1/0 en TAC; al imprimirlos o concatenarlos se muestran como
+        "true"/"false" (semántica TS) con un salto, sin opcode extra."""
+        self.temps.release(value)
+        t = self.temps.new_temp()
+        l_false = self.labels.new_label()
+        l_end = self.labels.new_label()
+        self._emit(OpCode.IFFALSE, value, None, Label(l_false))
+        self._emit(OpCode.ASSIGN, StrConst(self.program.intern_string("true")), None, t)
+        self._emit(OpCode.GOTO, None, None, Label(l_end))
+        self._emit(OpCode.LABEL, None, None, Label(l_false))
+        self._emit(OpCode.ASSIGN, StrConst(self.program.intern_string("false")), None, t)
+        self._emit(OpCode.LABEL, None, None, Label(l_end))
         return t
 
     def _gen_unary(self, ctx: CompiscriptParser.UnaryExprContext, dest) -> Operand:
