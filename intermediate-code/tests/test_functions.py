@@ -58,3 +58,31 @@ def test_nested_function_generates_expected_label_and_static_link_param():
     assert "func f_crearContador__siguiente" in result.tac_text
     assert "param fp" in result.tac_text
     assert "up 1," in result.tac_text
+
+
+def test_nested_function_calls_sibling():
+    src = (
+        "function outer(): integer {\n"
+        "  let k: integer = 7;\n"
+        "  function a(): integer { return k; }\n"
+        "  function b(): integer { return a() + 1; }\n"
+        "  return b();\n"
+        "}\n"
+        "print(outer());\n"
+    )
+    assert run_source(src) == "8\n"
+
+
+def test_nested_function_recursion_keeps_static_link():
+    src = (
+        "function outer(): integer {\n"
+        "  let k: integer = 3;\n"
+        "  function r(n: integer): integer {\n"
+        "    if (n <= 0) { return k; }\n"
+        "    return r(n - 1) + 1;\n"
+        "  }\n"
+        "  return r(2);\n"
+        "}\n"
+        "print(outer());\n"
+    )
+    assert run_source(src) == "5\n"

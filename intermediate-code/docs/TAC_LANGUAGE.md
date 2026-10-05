@@ -154,17 +154,33 @@ x = t0 + e
 
 ## 6. Funciones anidadas (closures)
 
-Static link (access link): al invocar una función anidada se pasa el `fp` actual del llamador
-(`param fp`, operando `FramePointer`); `up k, off` accede a una variable `k` niveles arriba
-(`k` se calcula comparando la cadena de `ActivationRecord` activos al momento de generar el
-acceso contra la del `Symbol`, en `_static_link_depth`).
+Static link (access link): se guarda en `fp[-4]` y apunta al frame del **padre léxico** de
+la función (donde fue declarada), no al de quien la llama. `up k, off` accede a una variable
+`k` niveles arriba (`k` se calcula comparando la cadena de `ActivationRecord` activos al
+momento de generar el acceso contra la del `Symbol`, en `_static_link_depth`).
 
-**Supuesto/alcance (simplificación deliberada):** solo se soporta invocar una función anidada
-**directamente desde su padre léxico inmediato** — se le pasa siempre el `fp` actual del
-llamador como static link. Invocar una función anidada desde un "primo" (otra función anidada
-en el mismo padre, o un nieto) requeriría encadenar el propio static link del llamador en vez
-de su `fp`, lo cual no está implementado. La gramática de Compiscript no permite retornar
-funciones como valores, así que no hace falta heap para closures.
+Al invocar una función anidada, el generador (`_static_link_for`) cuenta cuántos saltos hay
+desde el frame actual hasta el padre léxico del callee:
+
+- 0 saltos (el callee es hijo directo del llamador): `param fp`.
+- k > 0 saltos (el callee es hermano del llamador, se llama a sí mismo, o es un "tío"):
+  `t = up k-1, -4` (lee el static link del frame k-1 niveles arriba, o sea el frame k
+  niveles arriba) y `param t`.
+
+Ejemplo — recursión dentro de una función anidada (`r` se llama a sí misma; su padre es
+`outer`, un salto arriba del frame de `r`):
+
+```
+func f_outer__r, 12
+    ...
+    t1 = up 0, -4    # static link +1
+    param t1
+    param t0
+    t0 = call f_outer__r, 2    # r n=2
+```
+
+La gramática de Compiscript no permite retornar funciones como valores, así que no hace falta
+heap para closures.
 
 Ejemplo real (`crearContador`/`siguiente` del enunciado):
 
@@ -275,7 +291,8 @@ camino del generador.)
   `const` de nivel superior — incluso dentro de bloques/if/while sueltos a nivel de programa —
   son **globales** (`gp[off]`), no locales de `main`. Esto simplifica el diseño (no hace falta
   decidir el frame de `main` de antemano) sin perder nada observable.
-- **Funciones anidadas:** solo se soporta invocar una función anidada desde su padre léxico
-  inmediato (ver §6). Llamar a una función anidada desde un "primo" no está soportado.
+- **Funciones anidadas:** se pueden invocar desde cualquier punto donde son visibles (padre,
+  hermanos, ellas mismas, funciones más anidadas); el static link siempre apunta al padre
+  léxico (ver §6).
 - **`VCALL` no lleva `n` como operando** (ver nota en §2): se infiere en tiempo de ejecución
   vaciando la cola de `param` pendientes.

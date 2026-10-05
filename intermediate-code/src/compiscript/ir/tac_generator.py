@@ -10,9 +10,10 @@ operandos que ya no necesita ANTES de pedir un temporal destino, así el destino
 el índice recién liberado. Cada sentencia de nivel superior termina con `temps.live == 0`
 (verificado por un assert en `_gen_statement`).
 
-Supuestos documentados en docs/TAC_LANGUAGE.md §6: solo se soporta invocar una función
-anidada directamente desde su padre léxico inmediato (se le pasa siempre el `fp` actual como
-static link); no hay funciones de primera clase (no se puede llamar a través de una variable).
+Supuestos documentados en docs/TAC_LANGUAGE.md §6: una función anidada puede llamarse desde
+cualquier punto donde sea visible (su padre, un hermano, ella misma); el static link que se
+le pasa es el frame de su padre léxico (ver `_static_link_for`). No hay funciones de primera
+clase (no se puede llamar a través de una variable).
 """
 from __future__ import annotations
 
@@ -102,6 +103,19 @@ class TACGenerator:
             if any(s is symbol for s in ar.params) or any(s is symbol for s in ar.locals):
                 return depth
         return 0
+
+    def _static_link_for(self, parent_ar: Optional[ActivationRecord]) -> Operand:
+        """Frame del padre léxico del callee, visto desde el frame actual. Si el callee es
+        hijo directo de la función actual es `fp`; si es hermano o se llama a sí mismo, hay
+        que subir k saltos por la cadena de static links (`up k-1, -4` lee el link del frame
+        que está k-1 saltos arriba, es decir, el frame k saltos arriba)."""
+        hops = next((d for d, ar in enumerate(reversed(self._ar_chain)) if ar is parent_ar), 0)
+        if hops == 0:
+            return FP
+        t = self.temps.new_temp()
+        self._emit(OpCode.UPLOAD, Const(hops - 1), Const(-WORD_SIZE), t,
+                   comment=f"static link +{hops}")
+        return t
 
     def _read_var(self, symbol: Symbol) -> Operand:
         if symbol.storage in ("local", "param"):
@@ -785,12 +799,15 @@ class TACGenerator:
         arg_operands = [self._gen_expr(e) for e in arg_exprs]
         needs_link = bool(sym.extra.get("has_static_link"))
         n = len(arg_operands) + (1 if needs_link else 0)
+        link = None
         if needs_link:
-            self._emit(OpCode.PARAM, FP)
+            link = self._static_link_for(sym.extra.get("parent_ar"))
+            self._emit(OpCode.PARAM, link)
         for a in arg_operands:
             self._emit(OpCode.PARAM, a)
         for a in arg_operands:
             self.temps.release(a)
+        self.temps.release(link)
         ret_type = sym.data_type.return_type if isinstance(sym.data_type, FunctionType) else None
         result = None
         if ret_type is None or ret_type.kind != TypeKind.VOID:

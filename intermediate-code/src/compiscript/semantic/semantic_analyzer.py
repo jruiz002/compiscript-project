@@ -317,7 +317,11 @@ class SemanticAnalyzer(CompiscriptVisitor):
         sym = Symbol(name=name, kind=SymbolKind.FUNCTION, data_type=func_type,
                      line=line, column=col, scope_level=self.symbols.current_level,
                      is_initialized=True, label=label,
-                     extra={"has_static_link": has_static_link})
+                     extra={"has_static_link": has_static_link,
+                            # AR del padre léxico: el generador calcula cuántos saltos de
+                            # static link hay desde el llamador hasta ese frame.
+                            "parent_ar": enclosing_func_scope.activation_record
+                            if enclosing_func_scope is not None else None})
         self.symbols.define(sym)
         self.symbol_of[ctx] = sym
 
