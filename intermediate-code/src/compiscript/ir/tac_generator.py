@@ -59,6 +59,7 @@ class TACGenerator:
         self.temps: TempAllocator
         self._function_stack: list = []
         self._ar_chain: List[ActivationRecord] = []
+        self._class_ctx: dict = {}
 
     # ------------------------------------------------------------------
     # Entrada
@@ -411,6 +412,7 @@ class TACGenerator:
         self.current_function, self.temps, self._ar_chain = self._function_stack.pop()
 
     def _gen_class(self, ctx: CompiscriptParser.ClassDeclarationContext) -> None:
+        self._class_ctx[ctx.Identifier(0).getText()] = ctx
         for member in ctx.classMember():
             fn = member.functionDeclaration()
             if fn:
@@ -738,6 +740,7 @@ class TACGenerator:
         obj = self.temps.new_temp()
         size = class_type.instance_size if class_type else WORD_SIZE
         self._emit(OpCode.NEW, Label(class_name), Const(size), obj)
+        self._gen_field_inits(class_type, obj)
         ctor_label = class_type.method_label("constructor") if class_type else None
         if ctor_label:
             args_ctx = ctx.arguments()
@@ -751,6 +754,30 @@ class TACGenerator:
             self._emit(OpCode.CALL, Label(ctor_label), Const(len(arg_operands) + 1), None,
                        comment=f"n={len(arg_operands) + 1}")
         return obj
+
+    def _gen_field_inits(self, class_type: Optional[ClassType], obj: Operand) -> None:
+        """Inicializadores de campos (`let x = 5;` / `const K = 2;` dentro de la clase): se
+        emiten en el sitio del `new`, antes del constructor, de la clase base a la derivada."""
+        if class_type is None:
+            return
+        self._gen_field_inits(class_type.superclass, obj)
+        cls_ctx = self._class_ctx.get(class_type.name)
+        for member in cls_ctx.classMember() if cls_ctx else []:
+            if member.variableDeclaration():
+                decl = member.variableDeclaration()
+                expr = decl.initializer().expression() if decl.initializer() else None
+            elif member.constantDeclaration():
+                decl = member.constantDeclaration()
+                expr = decl.expression()
+            else:
+                continue
+            if expr is None:
+                continue
+            name = decl.Identifier().getText()
+            value = self._gen_expr(expr)
+            self._emit(OpCode.STORE, obj, Const(class_type.field_offset(name) or 0), value,
+                       comment=f".{name}")
+            self.temps.release(value)
 
     def _gen_static_call(self, sym: Symbol, call_suffix, dest) -> Operand:
         args_ctx = call_suffix.arguments()

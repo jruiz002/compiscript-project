@@ -109,9 +109,12 @@ fp - k         temporales (t0, t1, ... tmax)
 - vtable por clase: lista de labels; un método sobrescrito ocupa el **mismo slot** que el del
   padre (incluye `constructor`: si una subclase no define uno propio, hereda el slot — y por
   lo tanto la llamada — del padre).
-- `new C(args)`: `t = new C, size` → `param t` → `param args...` → `call C_constructor, n+1`.
-  Si no hay constructor en toda la cadena de herencia, no se emite ninguna llamada (los campos
-  quedan en su valor por defecto `0`, ver intérprete).
+- `new C(args)`: `t = new C, size` → inicializadores de campos → `param t` → `param args...`
+  → `call C_constructor, n+1`. Los campos con inicializador (`let x: integer = 5;` o
+  `const K = 2;` dentro de la clase) se emiten como `t[off] = valor` justo después del `new`,
+  **antes** del constructor, de la clase base a la derivada (el constructor ve los valores ya
+  inicializados). Campos sin inicializador quedan en `0`. Si no hay constructor en toda la
+  cadena de herencia, no se emite ninguna llamada.
 - Llamada a método `obj.metodo(args)`: `param obj` → `param args...` →
   `x = vcall obj, slot` — el generador detecta este patrón (`PropertyAccessExpr` seguido de
   `CallExpr` sobre un `ClassType`) en `ir/tac_generator._gen_left_hand_side`.
