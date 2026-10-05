@@ -258,7 +258,7 @@ camino del generador.)
 - Palabra de 4 bytes (`WORD_SIZE`), arquitectura destino asumida tipo MIPS para la Fase 3.
 - Booleanos representados como `1`/`0`; `null` es `0`.
 - `switch` hace fallthrough (semántica TS/C) salvo `break` explícito.
-- **`float` (decisión tomada, ver `FEATURES.md`):** la gramática de este proyecto sí incluye
+- **`float` (decisión tomada):** la gramática de este proyecto sí incluye
   `float` (`FloatLiteral`, `baseType` con `'float'`), a diferencia del supuesto original de que
   toda la aritmética era entera. Se decidió **(a) no crear opcodes flotantes separados**: los
   mismos `ADD/SUB/MUL/MOD` operan sobre `int` o `float` de Python indistintamente (no hay

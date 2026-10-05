@@ -3,8 +3,6 @@
 Genera Código de Tres Direcciones (TAC) a partir de Compiscript, reutilizando y extendiendo el
 analizador semántico de la Fase 1 (`semantic-analyzer/`, congelada).
 
-- Contexto y reglas de diseño completas: [`../CLAUDE.md`](../CLAUDE.md).
-- Desglose de trabajo por ticket/integrante: [`../FEATURES.md`](../FEATURES.md).
 - Arquitectura y pipeline: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 - Especificación del lenguaje intermedio (TAC): [`docs/TAC_LANGUAGE.md`](docs/TAC_LANGUAGE.md).
 - Referencia completa de comandos: [`docs/USAGE.md`](docs/USAGE.md).

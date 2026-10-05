@@ -1,8 +1,7 @@
 # Compiscript
 
 Compilador de **Compiscript** (subset de TypeScript) construido por fases en el curso de
-Construcción de Compiladores. Grupo de 3 integrantes — ver reparto de trabajo y estado en
-[`FEATURES.md`](FEATURES.md).
+Construcción de Compiladores.
 
 ## Fases
 
@@ -39,8 +38,6 @@ lexer/parser si cambia la gramática.
 |---|---|
 | Entender el lenguaje intermedio (TAC) diseñado, con ejemplos y supuestos | [`intermediate-code/docs/TAC_LANGUAGE.md`](intermediate-code/docs/TAC_LANGUAGE.md) |
 | Entender la arquitectura/pipeline del compilador | [`intermediate-code/docs/ARCHITECTURE.md`](intermediate-code/docs/ARCHITECTURE.md) |
-| Ver qué falta y quién es dueño de qué (tickets, estado) | [`FEATURES.md`](FEATURES.md) |
-| Ver las reglas de diseño y convenciones del proyecto | [`CLAUDE.md`](CLAUDE.md) |
 | Ver la Fase 1 (análisis semántico, congelada) | [`semantic-analyzer/README.md`](semantic-analyzer/README.md) |
 
 ## Reglas importantes
@@ -49,4 +46,4 @@ lexer/parser si cambia la gramática.
   trabajo nuevo va en `intermediate-code/` (que sí copia y extiende el código semántico, en
   `intermediate-code/src/compiscript/semantic/`).
 - Los commits se evalúan individualmente por integrante: la rúbrica exige que se note
-  claramente qué porción implementó cada quien. Ver la nota de atribución en `FEATURES.md`.
+  claramente qué porción implementó cada quien.

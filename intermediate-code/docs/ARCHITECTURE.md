@@ -17,7 +17,7 @@ fuente .cps
 
 `pipeline.compile(source: str) -> CompileResult` es el único punto de entrada; lo usan el CLI
 (`main.py`), el IDE (`ide/app.py`) y los tests (`tests/conftest.py`). Ninguno de los tres
-reimplementa estas etapas por su cuenta (ver `CLAUDE.md` §4). `CompileResult` expone además
+reimplementa estas etapas por su cuenta. `CompileResult` expone además
 `tac_text_addresses` (el mismo TAC con `fp[off]`/`gp[off]`) y `analyzer` (para que el IDE y los
 tests puedan inspeccionar `class_registry`, `node_types`, etc. sin recompilar).
 
@@ -43,7 +43,7 @@ tests puedan inspeccionar `class_registry`, `node_types`, etc. sin recompilar).
 
 La Fase 1 no decora el AST, así que el `SemanticAnalyzer` llena tablas laterales
 (`node_types`, `scope_of`, `symbol_of`) indexadas por `ParserRuleContext`, sin tocar las clases
-generadas por ANTLR (`CLAUDE.md` §4):
+generadas por ANTLR:
 
 - `node_types` se llena **automáticamente**: `SemanticAnalyzer.visit()` está sobrescrito para
   interceptar cada llamada y, si el resultado es un `CompiscriptType`, guardarlo — como todo
@@ -64,7 +64,7 @@ nunca vuelve a validar semántica. Precondición: `pipeline.compile` solo genera
 
 ## Por qué el cálculo de offsets vive en el semántico, no en un pase aparte
 
-`CLAUDE.md` sugiere un módulo `MemoryLayout` como pase independiente. En la implementación
+El diseño inicial contemplaba un módulo `MemoryLayout` como pase independiente. En la implementación
 real, asignar offsets de **locales/parámetros/globales** en línea, a medida que
 `SemanticAnalyzer` visita cada declaración, resultó más simple y evita un segundo recorrido del
 árbol: el orden de declaración ya es exactamente el orden en que hay que asignar offsets, y
