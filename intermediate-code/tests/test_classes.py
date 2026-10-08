@@ -74,3 +74,16 @@ def test_two_instances_have_independent_state():
         "print(b.inc());\n"
     )
     assert run_source(src) == "1\n2\n1\n"
+
+
+def test_field_initializers_run_before_constructor_base_first():
+    src = (
+        "class A { let a: integer = 1; const K: integer = 2; }\n"
+        "class B : A {\n"
+        "  let b: integer = 10;\n"
+        "  function constructor() { this.a = this.a + 100; }\n"
+        "  function suma(): integer { return this.a + this.b + this.K; }\n"
+        "}\n"
+        "print(new B().suma());\n"
+    )
+    assert run_source(src) == "113\n"
