@@ -64,6 +64,8 @@ def main(argv: list[str] | None = None) -> int:
         try:
             print(interpreter.run(), end="")
         except CompiscriptRuntimeError as exc:
+            # Mostrar lo que el programa alcanzó a imprimir antes de fallar (igual que el IDE).
+            print("".join(line + "\n" for line in interpreter.output), end="")
             print(f"Excepción no capturada: {exc.value}", file=sys.stderr)
             return 1
 

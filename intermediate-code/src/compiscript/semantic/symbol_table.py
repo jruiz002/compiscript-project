@@ -130,14 +130,16 @@ class ActivationRecord:
     def finalize(self, temp_count: int) -> int:
         """Se llama cuando ya se conoce max_temps (al terminar de generar TAC de la función)."""
         self.temp_count = temp_count
-        static_link_bytes = WORD_SIZE if self.has_static_link else 0
-        self.frame_size = static_link_bytes + self._max_local_bytes + WORD_SIZE * temp_count
+        # fp-4 (slot del static link) se reserva siempre, aunque la función no lo use: los
+        # locales empiezan en fp-8 en todos los frames, así que sin contarlo el último local
+        # quedaría fuera de los `frame_size` bytes bajo fp.
+        self.frame_size = WORD_SIZE + self._max_local_bytes + WORD_SIZE * temp_count
         return self.frame_size
 
     def describe(self) -> str:
         lines = [f"ActivationRecord({self.function_name}) frame_size={self.frame_size}"]
-        if self.has_static_link:
-            lines.append("  fp-4          static link")
+        lines.append("  fp-4          static link" if self.has_static_link
+                     else "  fp-4          (reservado: sin static link)")
         for p in self.params:
             lines.append(f"  fp+{p.offset:<9} param {p.name}: {p.data_type}")
         for l in self.locals:

@@ -22,7 +22,7 @@ from typing import List, Optional
 
 from ..semantic.generated_imports import CompiscriptParser
 from ..semantic.symbol_table import ActivationRecord, Symbol, SymbolKind, WORD_SIZE
-from ..semantic.types import ClassType, FunctionType, TypeKind, CompiscriptType, STRING, INTEGER
+from ..semantic.types import ClassType, FunctionType, TypeKind, CompiscriptType, STRING
 from .instructions import NEGATED_RELATIONAL, OpCode, Quad
 from .labels import LabelGenerator
 from .memory_layout import ARRAY_HEADER_SIZE
@@ -294,37 +294,24 @@ class TACGenerator:
         self._emit(OpCode.GOTO, None, None, Label(l_cond))
         self._emit(OpCode.LABEL, None, None, Label(l_end))
 
-    def _new_hidden_local(self, name_hint: str) -> "VarRef":
-        """Local oculto (no declarado por el usuario) para estado que debe sobrevivir toda
-        la duración de un ciclo (p.ej. índice/longitud/base de un foreach). A diferencia de
-        un Temp, una variable local NO dispara el assert de `temps.live == 0` por sentencia,
-        que solo vigila temporales de expresión de vida corta (docs/TAC_LANGUAGE.md §5)."""
-        ar = self._ar_chain[-1]
-        sym = Symbol(name=name_hint, kind=SymbolKind.VARIABLE, data_type=INTEGER,
-                     line=0, column=0, scope_level=0)
-        ar.allocate_local(sym)
-        return VarRef(sym)
-
     def _gen_foreach(self, ctx: CompiscriptParser.ForeachStatementContext) -> None:
-        array_value = self._gen_expr(ctx.expression())
-        ar = self._ar_chain[-1]
-        cursor = ar.save_cursor()
+        # Base/índice/longitud son variables locales ocultas (no temporales: deben sobrevivir
+        # todo el ciclo sin violar el assert `temps.live == 0` por sentencia, docs/
+        # TAC_LANGUAGE.md §5). Su offset ya lo reservó SemanticAnalyzer.visitForeachStatement.
+        item_sym = self.symbol_of[ctx]
+        array_local, index, length = (VarRef(s) for s in item_sym.extra["foreach_hidden"])
 
-        array_local = self._new_hidden_local("__arr")
+        array_value = self._gen_expr(ctx.expression())
         self._emit(OpCode.ASSIGN, array_value, None, array_local)
         self.temps.release(array_value)
 
-        index = self._new_hidden_local("__idx")
-        length = self._new_hidden_local("__len")
         self._emit(OpCode.ASSIGN, Const(0), None, index)
         self._emit(OpCode.LEN, array_local, None, length)
 
         l_cond = self.labels.new_label()
         l_update = self.labels.new_label()
         l_end = self.labels.new_label()
-
-        item_sym = self.symbol_of.get(ctx)
-        item_target = VarRef(item_sym) if item_sym is not None else self._new_hidden_local("__item")
+        item_target = VarRef(item_sym)
 
         self._emit(OpCode.LABEL, None, None, Label(l_cond))
         self._emit(OpCode.IF_GE, index, length, Label(l_end))
@@ -343,8 +330,6 @@ class TACGenerator:
         self._emit(OpCode.ADD, index, Const(1), index)
         self._emit(OpCode.GOTO, None, None, Label(l_cond))
         self._emit(OpCode.LABEL, None, None, Label(l_end))
-
-        ar.restore_cursor(cursor)
 
     def _gen_break(self) -> None:
         if self.loop_stack:
@@ -621,8 +606,22 @@ class TACGenerator:
             return self._leaf(Const(1 if text == "true" else 0), dest)
         return self._leaf(Const(0), dest)  # null
 
+    def _may_observe(self, ctx, dest: Operand) -> bool:
+        """¿Evaluar `ctx` podría leer `dest`? (lo menciona, o hace una llamada que podría
+        leerlo). Si sí, no se puede usar `dest` como destino antes de terminar de evaluar."""
+        if isinstance(ctx, CompiscriptParser.CallExprContext):
+            return True
+        if isinstance(dest, VarRef) and self.symbol_of.get(ctx) is dest.symbol:
+            return True
+        return any(self._may_observe(child, dest) for child in (ctx.getChildren()
+                                                                if ctx.getChildCount() else ()))
+
     def _gen_array_literal(self, ctx: CompiscriptParser.ArrayLiteralContext, dest) -> Operand:
         exprs = ctx.expression()
+        if dest is not None and self._may_observe(ctx, dest):
+            # `a = [a[1], a[0]]`: construir el arreglo directamente en `a` haría que los
+            # elementos leyeran el arreglo nuevo (vacío); se arma en un temporal y se copia.
+            return self._leaf(self._gen_array_literal(ctx, None), dest)
         arr = dest if dest is not None else self.temps.new_temp()
         self._emit(OpCode.NEWARRAY, Const(len(exprs)), None, arr)
         for i, e in enumerate(exprs):
@@ -866,19 +865,31 @@ class TACGenerator:
         if isinstance(ctx, CompiscriptParser.TernaryExprContext) and not ctx.expression():
             return self._gen_cond(ctx.logicalOrExpr(), l_true, l_false)
         if isinstance(ctx, CompiscriptParser.LogicalOrExprContext) and len(ctx.logicalAndExpr()) > 1:
+            # Si algún operando (salvo el último) es verdadero, se salta directo a l_true; si
+            # el llamador quiere "caer" en el caso verdadero (l_true=None, p.ej. un `if`), ese
+            # salto necesita una etiqueta propia al final de toda la condición.
             operands = ctx.logicalAndExpr()
+            l_after = None if l_true is not None else self.labels.new_label()
             for operand in operands[:-1]:
-                l_next = self.labels.new_label()
-                self._gen_cond(operand, l_true, l_next)
-                self._emit(OpCode.LABEL, None, None, Label(l_next))
-            return self._gen_cond(operands[-1], l_true, l_false)
+                self._gen_cond(operand, l_true or l_after, None)
+            self._gen_cond(operands[-1], l_true, l_false)
+            if l_after is not None:
+                self._emit(OpCode.LABEL, None, None, Label(l_after))
+            return None
         if isinstance(ctx, CompiscriptParser.LogicalAndExprContext) and len(ctx.equalityExpr()) > 1:
+            # Simétrico al `||`: el primer operando falso salta a l_false (o al final, si el
+            # llamador quiere caer en el caso falso, p.ej. la condición de un do-while).
             operands = ctx.equalityExpr()
+            l_after = None if l_false is not None else self.labels.new_label()
             for operand in operands[:-1]:
-                l_next = self.labels.new_label()
-                self._gen_cond(operand, l_next, l_false)
-                self._emit(OpCode.LABEL, None, None, Label(l_next))
-            return self._gen_cond(operands[-1], l_true, l_false)
+                self._gen_cond(operand, None, l_false or l_after)
+            self._gen_cond(operands[-1], l_true, l_false)
+            if l_after is not None:
+                self._emit(OpCode.LABEL, None, None, Label(l_after))
+            return None
+        inner = self._cond_passthrough(ctx)
+        if inner is not None:
+            return self._gen_cond(inner, l_true, l_false)
         if isinstance(ctx, CompiscriptParser.UnaryExprContext) and not ctx.primaryExpr() \
                 and ctx.getChild(0).getText() == "!":
             return self._gen_cond(ctx.unaryExpr(), l_false, l_true)
@@ -895,6 +906,30 @@ class TACGenerator:
                 self._emit(OpCode.GOTO, None, None, Label(l_false))
         elif l_false is not None:
             self._emit(OpCode.IFFALSE, value, None, Label(l_false))
+
+    @staticmethod
+    def _cond_passthrough(ctx):
+        """Hijo único de un nodo que no aporta operador (p.ej. `if (a < b)` llega como
+        LogicalOr -> LogicalAnd -> Equality -> Relational, o `(...)` entre paréntesis), para
+        que `_gen_cond` llegue al nodo que sí sabe generar saltos. None si no aplica."""
+        P = CompiscriptParser
+        if isinstance(ctx, P.LogicalOrExprContext) and len(ctx.logicalAndExpr()) == 1:
+            return ctx.logicalAndExpr(0)
+        if isinstance(ctx, P.LogicalAndExprContext) and len(ctx.equalityExpr()) == 1:
+            return ctx.equalityExpr(0)
+        if isinstance(ctx, P.EqualityExprContext) and len(ctx.relationalExpr()) == 1:
+            return ctx.relationalExpr(0)
+        if isinstance(ctx, P.RelationalExprContext) and len(ctx.additiveExpr()) == 1:
+            return ctx.additiveExpr(0)
+        if isinstance(ctx, P.AdditiveExprContext) and len(ctx.multiplicativeExpr()) == 1:
+            return ctx.multiplicativeExpr(0)
+        if isinstance(ctx, P.MultiplicativeExprContext) and len(ctx.unaryExpr()) == 1:
+            return ctx.unaryExpr(0)
+        if isinstance(ctx, P.UnaryExprContext) and ctx.primaryExpr():
+            return ctx.primaryExpr()
+        if isinstance(ctx, P.PrimaryExprContext) and ctx.expression():
+            return ctx.expression()
+        return None
 
     def _gen_relational_cond(self, ctx, l_true, l_false) -> None:
         operands = ctx.additiveExpr()

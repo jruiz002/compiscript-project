@@ -506,15 +506,30 @@ class SemanticAnalyzer(CompiscriptVisitor):
 
         elem_type = ANY
         if collection_type.kind == TypeKind.ARRAY:
-            elem_type = collection_type.element_type
+            # Igual que la indexación: recorrer un T[][] da filas de tipo T[], no T.
+            if collection_type.dimensions > 1:
+                elem_type = ArrayType(element_type=collection_type.element_type,
+                                      dimensions=collection_type.dimensions - 1)
+            else:
+                elem_type = collection_type.element_type
         elif collection_type.kind not in (TypeKind.ANY, TypeKind.ERROR):
             self._err(ctx, f"'foreach' requires an array, got '{collection_type}'")
 
         scope = self.symbols.enter_scope(kind="loop")
         self.scope_of[ctx] = scope
+        # Fase 2: estado oculto del ciclo (base/índice/longitud, ver tac_generator._gen_foreach).
+        # Se reserva aquí, junto con el resto de locales, para que su offset no choque con el
+        # de variables ya asignadas (reservarlo durante la generación reusaba offsets vivos).
+        hidden = []
+        for hidden_name in ("__arr", "__idx", "__len"):
+            hidden_sym = Symbol(name=hidden_name, kind=SymbolKind.VARIABLE, data_type=INTEGER,
+                                line=line, column=col, scope_level=self.symbols.current_level,
+                                is_initialized=True)
+            self._assign_storage(hidden_sym)
+            hidden.append(hidden_sym)
         iter_sym = Symbol(name=iter_name, kind=SymbolKind.LOOP_VAR, data_type=elem_type,
                           line=line, column=col, scope_level=self.symbols.current_level,
-                          is_initialized=True)
+                          is_initialized=True, extra={"foreach_hidden": hidden})
         self.symbols.define(iter_sym)
         self._assign_storage(iter_sym)
         self.symbol_of[ctx] = iter_sym

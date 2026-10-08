@@ -1,4 +1,4 @@
-func main, 8
+func main, 12
     a = 1
     b = 2
     c = 3
