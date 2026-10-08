@@ -87,8 +87,11 @@ fp - 8         local 0
 fp - k         temporales (t0, t1, ... tmax)
 ```
 
-- `frame_size = 4 (static link si aplica) + tamaño_locales + 4 * max_temps`
-  (`ActivationRecord.finalize()` en `semantic/symbol_table.py`).
+- `frame_size = 4 (slot del static link) + tamaño_locales + 4 * max_temps`
+  (`ActivationRecord.finalize()` en `semantic/symbol_table.py`). El slot `fp-4` se reserva
+  **siempre**, aunque la función no sea anidada y no lo use: así los locales empiezan en
+  `fp-8` en todos los frames (layout uniforme) y `frame_size` cubre hasta el local más
+  profundo.
 - Las variables de bloques internos se aplanan en el frame de la función:
   `ActivationRecord.save_cursor()`/`restore_cursor()` hace que bloques **hermanos** (p.ej. el
   `then` y el `else` de un mismo `if`) reusen el mismo rango de offsets; `_max_local_bytes`
@@ -138,10 +141,14 @@ Reglas de uso (`ir/tac_generator.py`):
 3. Al terminar una sentencia de nivel superior no debe quedar ningún temporal vivo — hay un
    `assert self.temps.live == 0` explícito en `_gen_statement`. Estado "oculto" que debe
    sobrevivir un ciclo completo (índice/longitud/base de un `foreach`) se aloja como
-   **variable local oculta** (`_new_hidden_local`), no como temporal, precisamente para no
-   violar esta regla.
+   **variable local oculta** (`__arr`, `__idx`, `__len`), no como temporal, precisamente
+   para no violar esta regla. Estas variables se reservan en el análisis semántico
+   (`visitForeachStatement`), junto con el resto de locales, para que su offset nunca
+   coincida con el de una variable viva.
 4. Asignación directa a variable no necesita temporal extra ("optimización de destino"):
-   `x = a + b` → `x = a + b`, nunca `t0 = a + b; x = t0`.
+   `x = a + b` → `x = a + b`, nunca `t0 = a + b; x = t0`. Excepción: un arreglo literal
+   cuyos elementos leen la misma variable (`a = [a[1], a[0]]`) o hacen llamadas se arma
+   primero en un temporal y luego se copia, para no leer el arreglo nuevo a medio construir.
 
 Ejemplo real (`tests/cases/success/temp_reuse.cps`) para `x = (a + b) * (c - d) + e;`:
 
@@ -185,7 +192,7 @@ heap para closures.
 Ejemplo real (`crearContador`/`siguiente` del enunciado):
 
 ```
-func f_crearContador, 8
+func f_crearContador, 12
     base = 10
     param fp
     t0 = call f_crearContador__siguiente, 1    # siguiente n=1
@@ -209,7 +216,25 @@ endfunc f_crearContador__siguiente
 - Comparaciones relacionales/de igualdad usadas como condición emiten el salto relacional
   directo (`IF_LT`, etc.) en vez de `t = a < b; ifFalse t goto L` — una instrucción menos y
   cero temporales, aprovechando que el operador negado (`NEGATED_RELATIONAL`) permite
-  sintetizar la rama "falsa" sin duplicar código.
+  sintetizar la rama "falsa" sin duplicar código. Para llegar a ellas, `_gen_cond` atraviesa los
+  nodos de un solo hijo que la gramática interpone (`if (a < b)` llega como LogicalOr →
+  LogicalAnd → Equality → Relational, y `(...)` como PrimaryExpr; ver `_cond_passthrough`).
+- Cuando el llamador quiere "caer" en el caso verdadero (`l_true=None`, p.ej. el cuerpo de un
+  `if`), un `||` necesita una etiqueta propia al final de la condición para que un operando
+  verdadero salte directamente al cuerpo sin evaluar los demás; simétricamente, un `&&` con
+  `l_false=None` (la condición de un `do-while`) salta al final cuando un operando es falso.
+  Ejemplo, `if (x > 5 || x < 0) { A } else { B }`:
+
+  ```
+      if x > 5 goto L2        # verdadero: directo al cuerpo
+      if x >= 0 goto L0       # último operando falso: rama else
+  L2:
+      A
+      goto L1
+  L0:
+      B
+  L1:
+  ```
 - Pila de ciclos (`LoopContext(break_label, continue_label)`): `while`/`do-while`/`for`/
   `foreach` apilan ambos labels; `switch` apila solo `break_label` (`continue_label=None`), así
   que un `continue` dentro de un `switch` sigue buscando hacia afuera hasta el ciclo más
@@ -250,16 +275,15 @@ print(factorial(5));
 ```
 
 ```
-func main, 4
+func main, 8
     param 5
     t0 = call f_factorial, 1    # factorial n=1
     print t0
     return
 endfunc main
 
-func f_factorial, 4
-    t0 = n <= 1
-    ifFalse t0 goto L0
+func f_factorial, 8
+    if n > 1 goto L0
     return 1
 L0:
     t0 = n - 1
@@ -270,10 +294,10 @@ L0:
 endfunc f_factorial
 ```
 
-(Nótese que aquí el generador usó `t0 = n <= 1; ifFalse t0 goto L0` en vez del salto relacional
-directo porque la condición completa del `if` pasó por el camino general de `_gen_cond` — en
-la práctica ambas formas conviven en el mismo programa según qué construcción dispara cada
-camino del generador.)
+(La condición `n <= 1` del `if` se traduce a un único salto relacional con el operador
+negado, `if n > 1 goto L0`, que salta la rama `then`; ver §7. El temporal `t0` se recicla en
+toda la función, por lo que `max_temps = 1` y `frame_size = 4 (slot del static link) + 0
+(locales) + 4 (t0) = 8`.)
 
 ## 10. Supuestos y decisiones de diseño
 

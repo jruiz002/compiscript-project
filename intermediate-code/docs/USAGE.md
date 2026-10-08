@@ -36,7 +36,8 @@ python -m compiscript.main examples/factorial.cps --out salida.tac  # escribe el
 ```
 
 Hay ejemplos listos en `examples/` (`factorial.cps`, `clases.cps`) y muchos más casos de prueba
-(uno por cada construcción del lenguaje) en `tests/cases/success/` y `tests/cases/failure/`.
+(control de flujo, arreglos/foreach, funciones anidadas, try/catch, clases) en
+`tests/cases/success/` y `tests/cases/failure/`.
 
 ## Tests
 

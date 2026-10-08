@@ -61,7 +61,7 @@ python -m compiscript.main tests/cases/failure/undeclared_variable.cps
 pytest -q
 ```
 
-Deberían pasar **61 tests**. Qué valida cada grupo (`tests/test_*.py`):
+Deberían pasar **82 tests**. Qué valida cada grupo (`tests/test_*.py`):
 
 | Archivo | Qué prueba |
 |---|---|
@@ -73,8 +73,8 @@ Deberían pasar **61 tests**. Qué valida cada grupo (`tests/test_*.py`):
 | `test_functions.py` | Funciones, recursión, funciones anidadas (closures) con static link |
 | `test_classes.py` | Constructores, herencia, despacho virtual (`vtable`), instancias independientes |
 | `test_arrays.py` | Arreglos 1D/2D, `boundscheck`, `try/catch` capturando un índice fuera de rango |
-| `test_golden.py` | Compara el `.tac` generado contra los esperados en `tests/cases/success/*.tac` |
-| `test_failures.py` | Los `.cps` en `tests/cases/failure/` deben fallar al compilar |
+| `test_golden.py` | Compara el `.tac` generado y la salida de ejecución contra los esperados en `tests/cases/success/*.tac`/`*.out` (7 programas: factorial, clases/herencia, reciclaje de temporales, control de flujo, arreglos/foreach, funciones anidadas, try/catch + strings) |
+| `test_failures.py` | Los 10 `.cps` en `tests/cases/failure/` deben fallar al compilar (sintaxis, tipos, ámbitos, `const`, `break`/`this` fuera de contexto, aridad, propiedades inexistentes, retorno faltante) |
 
 Para ver con detalle qué hace cada test (y aprender la sintaxis de Compiscript a la vez), abre
 cualquiera de esos archivos — son cortos y legibles.
