@@ -4,21 +4,8 @@ Semantic Analyzer for Compiscript.
 Implements an ANTLR4 Visitor that traverses the parse tree, enforces
 all semantic rules, builds the symbol table, and infers types for expressions.
 
-Copiado y extendido de semantic-analyzer/compiler/semantic/semantic_analyzer.py (Fase 1) —
-ver FEATURES.md ticket A-0. Extensiones de la Fase 2 (ticket A-1, A-2, A-3, CLAUDE.md §4, §6):
-
-  - Tablas laterales `node_types`, `scope_of`, `symbol_of`, indexadas por ParserRuleContext,
-    para que ir.tac_generator pueda generar TAC sin volver a hacer análisis semántico.
-    `node_types` se llena automáticamente interceptando visit() (toda visitXxxExpr ya retorna
-    su CompiscriptType); `scope_of`/`symbol_of` se llenan puntualmente donde se abre un scope o
-    se resuelve/declara un identificador.
-  - Asignación de direcciones de memoria (offsets) a cada Symbol según dónde se declara:
-    global -> SymbolTable.globals (gp[off]), local/parámetro -> ActivationRecord de la función
-    encerrante (fp[off]), atributo de clase -> storage='field' (el offset lo resuelve
-    ClassType.field_offsets, calculado por ir.memory_layout.compute_class_layouts una vez que
-    todas las clases están registradas).
-  - `this` se modela como un Symbol PARAMETER real (param 0) en cada método, para que el
-    generador de TAC lo trate igual que cualquier otro parámetro.
+Fase 2: además guarda node_types/scope_of/symbol_of para el generador de TAC y asigna
+la dirección de cada símbolo al declararlo.
 """
 from __future__ import annotations
 
@@ -50,7 +37,7 @@ class SemanticAnalyzer(CompiscriptVisitor):
         self.symbols = SymbolTable()
         self._class_registry: dict[str, ClassType] = {}
         self._in_constructor = False
-        # --- Fase 2: tablas laterales para ICG (CLAUDE.md §4) ---
+        # tablas para el generador de TAC
         self.node_types: dict = {}
         self.scope_of: dict = {}
         self.symbol_of: dict = {}
@@ -59,11 +46,7 @@ class SemanticAnalyzer(CompiscriptVisitor):
     def class_registry(self) -> dict:
         return self._class_registry
 
-    # ===================================================================
-    # Intercepta visit() para llenar node_types automáticamente: toda
-    # visitXxxExpr de este archivo retorna un CompiscriptType, así que no hace
-    # falta anotar cada método uno por uno.
-    # ===================================================================
+    # guarda el tipo de cada expresión en node_types
 
     def visit(self, tree):
         result = super().visit(tree)
@@ -112,18 +95,16 @@ class SemanticAnalyzer(CompiscriptVisitor):
                     self._err(ctx, f"Cannot assign '{rhs_type}' to '{attr_name}' (type '{member}')")
 
     def _assign_storage(self, sym: Symbol) -> None:
-        """Asigna dirección de memoria a `sym` según el scope donde se acaba de declarar
-        (ticket A-2). Debe llamarse justo después de un `self.symbols.define(sym)` exitoso."""
+        """Asigna la dirección de sym según dónde se declaró (global, local o atributo)."""
         scope = self.symbols.current_scope
         if scope.scope_kind == "class":
-            sym.storage = "field"  # offset real: ClassType.field_offsets (ticket A-4)
+            sym.storage = "field"  # el offset lo calcula memory_layout
             return
         ar = self.symbols.enclosing_activation_record()
         if ar is not None:
             ar.allocate_local(sym)
         else:
-            # Sin función encerrante (nivel global, incluso dentro de bloques/if/while
-            # sueltos a nivel de programa): todo lo que no está en una función es global.
+            # fuera de cualquier función todo es global
             self.symbols.globals.allocate(sym)
 
     # ===================================================================
@@ -295,7 +276,7 @@ class SemanticAnalyzer(CompiscriptVisitor):
         if self.symbols.lookup_local(name):
             self._err(ctx, f"Duplicate function declaration '{name}'")
 
-        # --- Fase 2: convención de etiquetas (CLAUDE.md §5.2) ---
+        # etiqueta: f_nombre, Clase_metodo o f_externa__interna
         is_method = self.symbols.current_scope.scope_kind == "class"
         enclosing_class = self.symbols.current_class_type() if is_method else None
         enclosing_func_scope = self.symbols.current_function_scope()
@@ -311,15 +292,13 @@ class SemanticAnalyzer(CompiscriptVisitor):
         else:
             label = f"f_{name}"
 
-        # Nested (lexically inside another function) -> necesita static link.
+        # las funciones anidadas necesitan static link
         has_static_link = enclosing_func_scope is not None
 
         sym = Symbol(name=name, kind=SymbolKind.FUNCTION, data_type=func_type,
                      line=line, column=col, scope_level=self.symbols.current_level,
                      is_initialized=True, label=label,
                      extra={"has_static_link": has_static_link,
-                            # AR del padre léxico: el generador calcula cuántos saltos de
-                            # static link hay desde el llamador hasta ese frame.
                             "parent_ar": enclosing_func_scope.activation_record
                             if enclosing_func_scope is not None else None})
         self.symbols.define(sym)
@@ -363,9 +342,7 @@ class SemanticAnalyzer(CompiscriptVisitor):
         return func_type
 
     def _always_returns(self, statements) -> bool:
-        """True si toda ruta por `statements` termina en `return`.
-        ponytail: loops y switch cuentan como "puede no retornar" (conservador, como TS sin
-        análisis de `while (true)`); agregarlos si algún caso real lo pide."""
+        """True si todos los caminos terminan en return (los ciclos y switch no cuentan)."""
         for stmt in statements:
             if stmt.returnStatement():
                 return True
@@ -506,7 +483,7 @@ class SemanticAnalyzer(CompiscriptVisitor):
 
         elem_type = ANY
         if collection_type.kind == TypeKind.ARRAY:
-            # Igual que la indexación: recorrer un T[][] da filas de tipo T[], no T.
+            # recorrer un T[][] da filas de tipo T[]
             if collection_type.dimensions > 1:
                 elem_type = ArrayType(element_type=collection_type.element_type,
                                       dimensions=collection_type.dimensions - 1)
@@ -517,9 +494,7 @@ class SemanticAnalyzer(CompiscriptVisitor):
 
         scope = self.symbols.enter_scope(kind="loop")
         self.scope_of[ctx] = scope
-        # Fase 2: estado oculto del ciclo (base/índice/longitud, ver tac_generator._gen_foreach).
-        # Se reserva aquí, junto con el resto de locales, para que su offset no choque con el
-        # de variables ya asignadas (reservarlo durante la generación reusaba offsets vivos).
+        # variables internas del foreach (arreglo, índice, longitud)
         hidden = []
         for hidden_name in ("__arr", "__idx", "__len"):
             hidden_sym = Symbol(name=hidden_name, kind=SymbolKind.VARIABLE, data_type=INTEGER,
@@ -741,8 +716,7 @@ class SemanticAnalyzer(CompiscriptVisitor):
                 if result.kind == TypeKind.STRING and r.kind == TypeKind.STRING:
                     result = STRING
                 elif result.kind == TypeKind.STRING or r.kind == TypeKind.STRING:
-                    # string + cualquier otro tipo representable -> concatenación con
-                    # tostr() (ticket B-8). ANY/ERROR pasan (p.ej. la variable de un catch).
+                    # string + otro tipo se concatena (el otro se convierte con tostr)
                     _concatable = (TypeKind.STRING, TypeKind.INTEGER, TypeKind.FLOAT,
                                    TypeKind.BOOLEAN, TypeKind.ANY, TypeKind.ERROR)
                     if result.kind in _concatable and r.kind in _concatable:

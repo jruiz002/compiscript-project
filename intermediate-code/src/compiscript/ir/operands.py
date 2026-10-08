@@ -1,8 +1,4 @@
-"""Operandos del TAC: Temp, VarRef, Const, StrConst, Label.
-
-Diseño: docs/TAC_LANGUAGE.md §1. Todos son inmutables (frozen dataclasses) para que puedan
-vivir como valores dentro de un Quad y compararse/hashearse con seguridad. Ticket B-1.
-"""
+"""Operandos del TAC: Temp, VarRef, Const, StrConst, Label y FP."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,7 +7,7 @@ from typing import Union
 
 @dataclass(frozen=True)
 class Temp:
-    """Temporal (t0, t1, ...). El índice es reasignado por TempAllocator."""
+    """Temporal (t0, t1, ...)."""
     index: int
 
     def __str__(self) -> str:
@@ -20,8 +16,8 @@ class Temp:
 
 @dataclass(frozen=True)
 class VarRef:
-    """Referencia a una variable/parámetro/campo. La dirección sale de `symbol`."""
-    symbol: "object"  # compiscript.semantic.symbol_table.Symbol — evita import circular
+    """Variable o parámetro; la dirección sale de su símbolo."""
+    symbol: "object"  # Symbol (sin import para evitar import circular)
 
     def __str__(self) -> str:
         return self.symbol.name
@@ -32,7 +28,7 @@ class VarRef:
 
 @dataclass(frozen=True)
 class Const:
-    """Constante entera/booleana/float. Booleanos son 1/0; null es 0."""
+    """Constante. Los booleanos son 1/0 y null es 0."""
     value: Union[int, float]
 
     def __str__(self) -> str:
@@ -41,7 +37,7 @@ class Const:
 
 @dataclass(frozen=True)
 class StrConst:
-    """Dirección de un string en la sección de datos (ver ir.program.TACProgram)."""
+    """String de la sección de datos (str_n)."""
     label: str
 
     def __str__(self) -> str:
@@ -50,7 +46,7 @@ class StrConst:
 
 @dataclass(frozen=True)
 class Label:
-    """Etiqueta de control de flujo o de función."""
+    """Etiqueta de salto o de función."""
     name: str
 
     def __str__(self) -> str:
@@ -59,9 +55,7 @@ class Label:
 
 @dataclass(frozen=True)
 class FramePointer:
-    """Marcador especial: 'pasar mi propio fp actual' (usado como argumento de `param` al
-    invocar una función anidada directamente desde su padre léxico inmediato, ver ticket A-5
-    y docs/TAC_LANGUAGE.md §6, supuestos)."""
+    """El fp actual, se pasa como static link a una función anidada."""
 
     def __str__(self) -> str:
         return "fp"

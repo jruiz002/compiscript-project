@@ -1,4 +1,4 @@
-"""Tests de funciones, llamadas, retorno, recursión y funciones anidadas (tickets B-6, A-5)."""
+"""Tests de funciones, recursión y funciones anidadas."""
 from conftest import compile_ok, run_source
 
 

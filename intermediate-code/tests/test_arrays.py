@@ -1,4 +1,4 @@
-"""Tests de arreglos 1D/2D, literales, indexación y boundscheck (ticket B-7)."""
+"""Tests de arreglos 1D/2D, indexación y boundscheck."""
 from conftest import compile_ok, run_source
 
 
@@ -18,7 +18,7 @@ def test_2d_array_as_array_of_arrays():
 
 def test_array_index_offset_skips_length_header():
     result = compile_ok("let a: integer[] = [7, 8, 9];\nprint(a[0]);\n")
-    # el offset del primer elemento debe saltar los 4 bytes del header de longitud
+    # el primer elemento está después de la longitud (+4)
     assert "boundscheck" in result.tac_text
     assert "+ 4" in result.tac_text
 
@@ -42,8 +42,7 @@ def test_len_builtin_via_foreach_visits_every_element():
 
 
 def test_reassigning_array_literal_that_reads_the_same_variable():
-    # regresion: la optimizacion de destino creaba el arreglo nuevo directo en `a` antes de
-    # leer `a[2]`/`a[0]` (que entonces leian el arreglo nuevo -> indice fuera de rango)
+    # el arreglo nuevo no debe crearse en `a` antes de leer a[2] y a[0]
     src = (
         "let a: integer[] = [3, 1, 2];\n"
         "a = [a[2], a[0]];\n"

@@ -1,4 +1,4 @@
-"""TACProgram: funciones, sección de datos, strings deduplicados. Ticket B-2."""
+"""Programa TAC: lista de funciones y sección de datos con los strings."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -9,7 +9,7 @@ from .instructions import Quad
 
 @dataclass
 class TACFunction:
-    """Una función/método ya traducido a TAC. `name` es su etiqueta (f_foo, Clase_metodo)."""
+    """Función o método traducido a TAC."""
     name: str
     frame_size: int = 0
     has_static_link: bool = False
@@ -31,7 +31,7 @@ class TACProgram:
         return func
 
     def intern_string(self, value: str) -> str:
-        """Deduplica un literal de string; retorna su etiqueta (str_<n>)."""
+        """Devuelve la etiqueta del string (si ya existe, reusa la misma)."""
         existing = self._string_by_value.get(value)
         if existing is not None:
             return existing

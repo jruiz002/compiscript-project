@@ -1,9 +1,6 @@
-"""IDE Streamlit: editor + botón "Compilar" sobre pipeline.compile + paneles de errores, TAC
-(toggle simbólico/direcciones), tabla de símbolos/registros de activación y "Ejecutar" con el
-intérprete (ticket C-5).
+"""IDE en Streamlit: editor, compilar, ver TAC y tabla de símbolos, y ejecutar.
 
 Ejecutar con: streamlit run src/compiscript/ide/app.py
-(el tema visual sale de .streamlit/config.toml, en la raíz de intermediate-code/)
 """
 from __future__ import annotations
 
@@ -15,7 +12,7 @@ from compiscript.ir.interpreter import CompiscriptRuntimeError, Interpreter
 try:
     from streamlit_ace import st_ace
     _HAS_ACE = True
-except ImportError:  # streamlit-ace es opcional; caemos a un textarea normal
+except ImportError:  # si no está streamlit-ace se usa un text_area
     _HAS_ACE = False
 
 DEFAULT_SOURCE = """function factorial(n: integer): integer {

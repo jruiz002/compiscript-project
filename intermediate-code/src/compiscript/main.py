@@ -1,4 +1,4 @@
-"""CLI de Compiscript Fase 2: compila un archivo .cps a TAC.
+"""CLI: compila un archivo .cps a TAC.
 
 Uso:
     python -m compiscript.main archivo.cps [--out archivo.tac] [--addresses]
@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             print(interpreter.run(), end="")
         except CompiscriptRuntimeError as exc:
-            # Mostrar lo que el programa alcanzó a imprimir antes de fallar (igual que el IDE).
+            # mostrar lo que se imprimió antes del error
             print("".join(line + "\n" for line in interpreter.output), end="")
             print(f"Excepción no capturada: {exc.value}", file=sys.stderr)
             return 1

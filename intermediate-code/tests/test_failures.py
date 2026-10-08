@@ -1,5 +1,4 @@
-"""Programas en tests/cases/failure/ que NO deben compilar: CompileResult.ok == False, sin
-TAC, con al menos un mensaje de error (ticket TEST-2)."""
+"""Los programas de tests/cases/failure/ no deben compilar."""
 from __future__ import annotations
 
 from pathlib import Path

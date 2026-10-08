@@ -1,4 +1,4 @@
-"""Tests de clases, herencia, vtables, this, new y despacho virtual (tickets A-3, A-4)."""
+"""Tests de clases, herencia, this, new y despacho virtual."""
 from conftest import compile_ok, run_source
 
 

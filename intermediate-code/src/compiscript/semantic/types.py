@@ -2,9 +2,7 @@
 """
 Type system definitions for Compiscript.
 
-Copiado y extendido de semantic-analyzer/compiler/semantic/types.py (Fase 1) — ver
-FEATURES.md ticket A-0. Extensión de la Fase 2 (ticket A-4): ClassType gana el layout de
-memoria de instancias y la vtable (offsets de atributos, tamaño de instancia, slots de método).
+Fase 2: ClassType también guarda el layout de sus instancias y su vtable.
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -121,8 +119,7 @@ class ClassType(CompiscriptType):
     attributes: dict = field(default_factory=dict)
     methods: dict = field(default_factory=dict)
 
-    # --- Layout de memoria (Fase 2, ticket A-4) — llenado por
-    # ir.memory_layout.compute_class_layouts() una vez que todas las clases están registradas.
+    # layout en memoria, lo llena memory_layout.compute_class_layouts()
     field_offsets: Dict[str, int] = field(default_factory=dict)
     instance_size: int = 4  # al menos el puntero a vtable (slot 0)
     vtable: List[str] = field(default_factory=list)
@@ -157,10 +154,7 @@ class ClassType(CompiscriptType):
             return True
         if not isinstance(other, ClassType):
             return False
-        # self.is_compatible_with(other) se usa como "¿un valor de tipo `other` cabe en una
-        # variable declarada `self`?" (p.ej. declared_type.is_compatible_with(init_type)).
-        # Por lo tanto hay que caminar la cadena de `other` buscando `self` (widening:
-        # subclase -> referencia de superclase), no al revés.
+        # una subclase se puede asignar a una variable de la superclase
         cursor: Optional[ClassType] = other
         while cursor is not None:
             if cursor.name == self.name:

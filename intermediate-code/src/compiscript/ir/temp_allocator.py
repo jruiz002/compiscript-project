@@ -1,10 +1,7 @@
-"""Asignación y reciclaje de temporales (requisito explícito de la rúbrica, ticket B-3).
+"""Asignación y reciclaje de temporales.
 
-Diseño y reglas de uso: docs/TAC_LANGUAGE.md §5.
-  - new_temp() reusa el índice libre más pequeño (min-heap de libres) o crea uno nuevo.
-  - release(op) libera `op` si es un Temp; no hace nada con VarRef/Const/StrConst/Label/None.
-  - max_used registra el pico de temporales vivos simultáneamente -> alimenta frame_size.
-  - reset() se llama una vez por función (un TempAllocator se reutiliza entre funciones).
+new_temp() da el temporal libre más pequeño (min-heap), release() lo devuelve y max_used
+guarda el máximo usado a la vez, que se usa para el tamaño del frame.
 """
 from __future__ import annotations
 
@@ -15,8 +12,7 @@ from .operands import Operand, Temp
 
 
 class TempAllocatorError(RuntimeError):
-    """Uso incorrecto del allocator: liberar un temporal que no está vivo (doble-release,
-    o release de un Temp obsoleto cuyo índice ya fue reciclado)."""
+    """Se liberó un temporal que no estaba en uso."""
 
 
 class TempAllocator:

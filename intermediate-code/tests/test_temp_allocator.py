@@ -1,4 +1,4 @@
-"""Tests unitarios de TempAllocator (ticket B-3). Ver docs/TAC_LANGUAGE.md §5."""
+"""Tests de TempAllocator."""
 from compiscript.ir.operands import Temp
 from compiscript.ir.temp_allocator import TempAllocator, TempAllocatorError
 
@@ -19,8 +19,7 @@ def test_release_then_new_temp_reuses_smallest_free_index():
     t2 = alloc.new_temp()
     alloc.release(t1)
     alloc.release(t0)
-    # debe reusar el indice mas pequeno libre (0), no el ultimo liberado (0 tambien aqui,
-    # asi que forzamos el caso con orden de liberacion distinto al de indices)
+    # debe reusar el índice libre más pequeño, no el último liberado
     assert alloc.new_temp() == Temp(0)
     assert alloc.new_temp() == Temp(1)
     assert alloc.new_temp() == Temp(3)
@@ -43,7 +42,7 @@ def test_max_used_tracks_peak_live_temporaries():
     alloc.release(b)
     c = alloc.new_temp()
     alloc.release(c)
-    assert alloc.max_used == 2  # el pico fue 2 (a y b vivos a la vez), no 3
+    assert alloc.max_used == 2  # máximo 2 vivos a la vez
 
 
 def test_double_release_raises():
@@ -65,7 +64,7 @@ def test_reset_clears_state():
 
 
 def test_destination_can_reuse_freed_operand_index():
-    """x = (a + b) * (c - d) + e -> solo 2 temporales, no 4 (docs/TAC_LANGUAGE.md §5)."""
+    """x = (a + b) * (c - d) + e se resuelve con 2 temporales."""
     from conftest import compile_ok
 
     result = compile_ok(
@@ -74,7 +73,7 @@ def test_destination_can_reuse_freed_operand_index():
         "x = (a + b) * (c - d) + e;"
     )
     tac = result.tac_text
-    assert "t2" not in tac  # nunca se necesito un tercer temporal
+    assert "t2" not in tac  # no hizo falta un tercer temporal
     assert "t0 = a + b" in tac
     assert "t1 = c - d" in tac
     assert "t0 = t0 * t1" in tac

@@ -1,6 +1,4 @@
-"""Tests de expresiones aritméticas/relacionales/lógicas, precedencia y reciclaje de
-temporales (ticket B-4). Ver también test_temp_allocator.py para el caso canónico de
-docs/TAC_LANGUAGE.md §5."""
+"""Tests de expresiones: precedencia, operadores lógicos y temporales."""
 from conftest import compile_ok, run_source
 
 
@@ -30,7 +28,7 @@ def test_ternary_materializes_value():
 
 
 def test_short_circuit_or_does_not_evaluate_right_side():
-    # si el '||' no cortocircuitara, dividir entre 0 fallaria al interpretar
+    # si no hubiera cortocircuito se dividiría entre 0
     out = run_source(
         "function siempreTrue(): boolean { return true; }\n"
         "function division(): boolean { return (1 / 0) > 0; }\n"
@@ -54,7 +52,7 @@ def test_booleans_print_and_concat_as_true_false():
 
 
 def test_no_live_temps_after_statement_assertion_holds():
-    # si el generador filtrara temporales, esto lanzaria AssertionError al compilar.
+    # si quedara un temporal sin liberar, el assert del generador fallaría
     result = compile_ok(
         "let a: integer = 1; let b: integer = 2; let c: integer = 3;\n"
         "print((a + b) * c - (a - b) / 1 + (a == b ? 1 : 0));\n"

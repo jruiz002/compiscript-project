@@ -1,9 +1,6 @@
 # compiler/semantic/errors.py
 """
 Semantic error and warning classes for Compiscript.
-
-Copiado sin cambios de semantic-analyzer/compiler/semantic/errors.py (Fase 1) — ver
-FEATURES.md ticket A-0.
 """
 from __future__ import annotations
 from dataclasses import dataclass, field

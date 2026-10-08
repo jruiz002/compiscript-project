@@ -1,15 +1,7 @@
-"""Pipeline único de compilación: fuente .cps -> TAC.
+"""Pipeline de compilación: .cps -> TAC. Lo usan el CLI, el IDE y los tests.
 
-Lo usan el CLI (main.py), el IDE (ide/app.py) y los tests. Ninguno de los tres debe
-reimplementar estas etapas por su cuenta (ver CLAUDE.md §4 y docs/ARCHITECTURE.md).
-
-Etapas:
-  1. Lexer/Parser (ANTLR)                  -> errores sintácticos, aborta si hay
-  2. SemanticAnalyzer + tablas laterales    -> errores semánticos, aborta si hay
-  3. memory_layout.compute_class_layouts    -> offsets/vtables de clases (necesita TODAS
-                                               las clases ya registradas por el semántico)
-  4. TACGenerator (Visitor)                 -> TACProgram
-  5. printer.print_program                  -> texto .tac
+Etapas: parser -> análisis semántico -> layout de clases -> generador de TAC -> printer.
+Si hay errores sintácticos o semánticos se detiene antes de generar código.
 """
 from __future__ import annotations
 
@@ -36,7 +28,7 @@ class CompileResult:
     tac_text_addresses: str | None = None
     program: Any | None = None  # ir.program.TACProgram
     symbol_table: Any | None = None  # semantic.symbol_table.SymbolTable
-    analyzer: Any | None = None  # semantic.SemanticAnalyzer (para IDE/tests avanzados)
+    analyzer: Any | None = None  # semantic.SemanticAnalyzer
 
 
 class _SyntaxErrorCollector(ErrorListener):

@@ -2,19 +2,8 @@
 """
 Symbol Table with scope/environment management for Compiscript.
 
-Copiado y extendido de semantic-analyzer/compiler/semantic/symbol_table.py (Fase 1) — ver
-FEATURES.md ticket A-0. Extensiones de la Fase 2 (ticket A-2, CLAUDE.md §6):
-  - Symbol: offset, size, storage, label, address().
-  - Scope: activation_record (en scopes de función).
-  - ActivationRecord: registro de activación con asignación de offsets para params/locales.
-  - GlobalAllocator: offsets de variables globales (sección de datos, gp[off]).
-  - SymbolTable.dump(): árbol de scopes con offsets y frames, para IDE/docs.
-
-Diseño del frame: docs/TAC_LANGUAGE.md §3. Las variables de bloques internos se aplanan en el
-frame de la función: ActivationRecord.allocate_local() avanza un cursor; save_cursor()/
-restore_cursor() (llamado al entrar/salir de cada bloque) permite que bloques hermanos reusen
-el mismo espacio de offsets, mientras que el "punto más profundo" alcanzado (peak) determina el
-tamaño final de la zona de locales.
+Fase 2: los símbolos tienen dirección (offset/storage) y cada función tiene su registro de
+activación (ActivationRecord). Layout del frame en docs/TAC_LANGUAGE.md.
 """
 from __future__ import annotations
 
@@ -24,7 +13,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from .types import ANY, CompiscriptType
 
-WORD_SIZE = 4  # bytes por valor (todo — enteros, floats, booleanos, referencias — ocupa 1 word)
+WORD_SIZE = 4  # todos los valores ocupan una palabra
 
 
 class SymbolKind(Enum):
@@ -49,7 +38,7 @@ class Symbol:
     scope_level: int
     is_initialized: bool = False
     is_const: bool = False
-    # --- Fase 2: dirección/tamaño/etiqueta (CLAUDE.md §6) ---
+    # dirección en memoria
     offset: Optional[int] = None
     size: int = WORD_SIZE
     storage: Storage = None
@@ -58,7 +47,7 @@ class Symbol:
     extra: Dict[str, Any] = field(default_factory=dict)
 
     def address(self) -> str:
-        """Dirección simbólica de memoria: 'gp[4]', 'fp[-8]', '[8]' (campo, relativo a objeto)."""
+        """Ej: gp[4], fp[-8], o [8] para atributos."""
         if self.storage == "global":
             return f"gp[{self.offset}]"
         if self.storage in ("local", "param"):
@@ -87,7 +76,7 @@ class Symbol:
 
 @dataclass
 class ActivationRecord:
-    """Registro de activación de una función/método (CLAUDE.md §5.3, §6)."""
+    """Registro de activación de una función o método."""
 
     function_name: str
     has_static_link: bool = False
@@ -120,19 +109,17 @@ class ActivationRecord:
         return offset
 
     def save_cursor(self) -> int:
-        """Snapshot del cursor de locales, para restaurarlo al salir de un bloque hijo."""
+        """Guarda el cursor de locales al entrar a un bloque."""
         return self._next_local_offset
 
     def restore_cursor(self, saved: int) -> None:
-        """Bloques hermanos reusan el mismo rango de offsets (CLAUDE.md §5.3)."""
+        """Al salir del bloque, así los bloques hermanos reusan los mismos offsets."""
         self._next_local_offset = saved
 
     def finalize(self, temp_count: int) -> int:
-        """Se llama cuando ya se conoce max_temps (al terminar de generar TAC de la función)."""
+        """Se llama al terminar de generar la función, cuando ya se sabe cuántos temporales usa."""
         self.temp_count = temp_count
-        # fp-4 (slot del static link) se reserva siempre, aunque la función no lo use: los
-        # locales empiezan en fp-8 en todos los frames, así que sin contarlo el último local
-        # quedaría fuera de los `frame_size` bytes bajo fp.
+        # fp-4 (static link) se reserva siempre, los locales empiezan en fp-8
         self.frame_size = WORD_SIZE + self._max_local_bytes + WORD_SIZE * temp_count
         return self.frame_size
 
@@ -185,10 +172,9 @@ class Scope:
         self.scope_kind = scope_kind  # 'global' | 'function' | 'class' | 'block' | 'loop' | 'switch'
         self._symbols: Dict[str, Symbol] = {}
         self.children: List["Scope"] = []
-        # Fase 2: solo los scopes de función tienen un registro de activación propio.
+        # solo en scopes de función
         self.activation_record: Optional[ActivationRecord] = None
-        # Fase 2: Symbol de la función/método que abrió este scope (para encadenar labels de
-        # funciones anidadas, p.ej. f_externa__interna). None salvo en scopes 'function'.
+        # símbolo de la función que abrió el scope (para las etiquetas de funciones anidadas)
         self.defining_symbol: Optional[Symbol] = None
 
     # ------------------------------------------------------------------
@@ -402,8 +388,7 @@ class SymbolTable:
             self._collect(child, result)
 
     def dump(self) -> str:
-        """Árbol legible de scopes con offsets/direcciones y registros de activación
-        (usado por el CLI --dump-symbols y el panel de símbolos del IDE)."""
+        """Texto con los scopes, direcciones y registros de activación (--dump-symbols e IDE)."""
         lines: List[str] = [f"globals: {self.globals.total_size} bytes"]
         self._dump_scope(self._global, 0, lines)
         return "\n".join(lines)

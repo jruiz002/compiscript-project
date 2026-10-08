@@ -1,5 +1,4 @@
-"""Tests de las tablas laterales (node_types/scope_of/symbol_of) y de los registros de
-activación de la tabla de símbolos extendida (tickets A-1, A-2)."""
+"""Tests de node_types/scope_of/symbol_of y de los registros de activación."""
 from conftest import compile_ok
 
 
@@ -13,7 +12,7 @@ def test_symbol_of_resolves_shadowed_identifiers():
         "print(x);\n"
     )
     analyzer = result.analyzer
-    # dos Symbol distintos para 'x', cada uso debe resolver al de su propio scope
+    # cada 'x' debe resolver al símbolo de su scope
     outer = analyzer.symbols._global.lookup_local("x")
     inner_scope = analyzer.symbols._global.children[0]
     inner = inner_scope.lookup_local("x")

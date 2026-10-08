@@ -1,4 +1,4 @@
-"""Tests de offsets, frame_size y layout de clases (tickets A-2, A-4)."""
+"""Tests de offsets, frame_size y layout de clases."""
 from conftest import compile_ok
 
 
@@ -14,9 +14,7 @@ def test_frame_size_formula_locals_and_temps():
     func_scope = result.analyzer.symbols._global.children[0]
     ar = func_scope.activation_record
     assert ar.function_name == "f_f"
-    # 4 bytes del slot fp-4 (static link, reservado siempre) + 2 locales (x en fp-8, y en
-    # fp-12) = 12; la optimizacion de destino (regla 4, docs/TAC_LANGUAGE.md §5) hace que ni
-    # siquiera haga falta un temporal aqui.
+    # 4 (fp-4) + 2 locales = 12, sin temporales
     assert ar.temp_count == 0
     assert ar.frame_size == 12
     # el frame debe cubrir al local mas profundo
@@ -68,15 +66,15 @@ def test_class_layout_inheritance_offsets_and_vtable():
     assert animal.field_offsets["nombre"] == 4
     assert animal.instance_size == 8
 
-    # 'nombre' se hereda y CONSERVA su offset; 'raza' se agrega despues
+    # 'nombre' se hereda con el mismo offset, 'raza' va después
     assert perro.field_offsets["nombre"] == 4
     assert perro.field_offsets["raza"] == 8
     assert perro.instance_size == 12
 
-    # 'hablar' esta sobrescrito: mismo slot que en Animal
+    # 'hablar' sobrescrito usa el mismo slot
     assert animal.method_slot("hablar") == perro.method_slot("hablar")
     assert perro.vtable[perro.method_slot("hablar")] == "Perro_hablar"
-    # el constructor no se sobrescribe: Perro hereda el de Animal en el mismo slot
+    # Perro hereda el constructor de Animal
     assert perro.vtable[perro.method_slot("constructor")] == "Animal_constructor"
 
 
@@ -91,6 +89,6 @@ def test_foreach_hidden_locals_get_their_own_offsets():
     )
     ar = result.analyzer.symbols._global.children[0].activation_record
     offsets = [s.offset for s in ar.locals]
-    # s, __arr, __idx, __len, x: todos con offset propio (ninguno se pisa)
+    # s, __arr, __idx, __len y x con offsets distintos
     assert len(offsets) == len(set(offsets)) == 5
     assert ar.frame_size == 4 + 4 * len(offsets) + 4 * ar.temp_count

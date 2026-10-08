@@ -1,8 +1,4 @@
-"""Analizador semántico de Compiscript (copiado y extendido de la Fase 1, ver FEATURES.md
-ticket A-0) más las extensiones de la Fase 2: tablas laterales para ICG (A-1), tabla de
-símbolos con offsets/registros de activación (A-2) y layout de clases/vtables (A-4, en
-ir.memory_layout, que consume `SemanticAnalyzer.class_registry`).
-"""
+"""Analizador semántico de la Fase 1, extendido para la generación de código intermedio."""
 from .semantic_analyzer import SemanticAnalyzer
 from .symbol_table import SymbolTable, Symbol, SymbolKind, Scope, ActivationRecord, GlobalAllocator, WORD_SIZE
 from .errors import ErrorCollector, SemanticError, Severity

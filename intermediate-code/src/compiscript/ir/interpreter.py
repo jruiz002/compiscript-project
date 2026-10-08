@@ -1,11 +1,7 @@
-"""Ejecuta un TACProgram; usado como oráculo en los tests de ejecución (los más fuertes,
-CLAUDE.md §7) y por el botón "Ejecutar" del IDE.
+"""Intérprete de TAC, lo usan los tests y el botón "Ejecutar" del IDE.
 
-Modelo de memoria: cada frame de función es un dict `{offset_o_clave_temporal: valor}`.
-Arreglos y objetos son listas de Python indexadas por `offset // WORD_SIZE` (slot 0 = longitud
-en arreglos, o el ClassType actuando como "puntero a vtable" en objetos) — así la aritmética de
-offsets en bytes que emite tac_generator (`ARRAY_HEADER_SIZE`, `field_offset`) se traduce
-directamente a un índice de lista. Ticket C-4.
+Cada frame es un dict indexado por offset; arreglos y objetos son listas indexadas por
+offset // 4.
 """
 from __future__ import annotations
 
@@ -19,8 +15,7 @@ from .program import TACFunction, TACProgram
 
 
 class CompiscriptRuntimeError(Exception):
-    """Una excepción lanzada por el programa Compiscript en ejecución (THROW, boundscheck
-    fallido). `value` es el valor capturado por `get_exception` en el `catch`."""
+    """Excepción del programa en ejecución (throw o boundscheck fallido)."""
 
     def __init__(self, value: Any):
         super().__init__(str(value))
@@ -38,7 +33,7 @@ _ARITH = {
 def _div(a, b):
     if isinstance(a, int) and isinstance(b, int):
         q = a / b
-        return int(q) if q >= 0 else -int(-q)  # trunca hacia cero, no floor
+        return int(q) if q >= 0 else -int(-q)  # trunca hacia cero
     return a / b
 
 

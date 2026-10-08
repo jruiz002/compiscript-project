@@ -1,4 +1,4 @@
-"""Humo: el paquete se importa y expone la función pipeline.compile (ver ../../FEATURES.md)."""
+"""Prueba básica: el paquete se importa y compile() funciona."""
 from compiscript import pipeline
 
 

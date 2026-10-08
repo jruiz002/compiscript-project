@@ -1,6 +1,7 @@
-"""Compara la salida de pipeline.compile (y del intérprete) contra los .tac/.out esperados
-en tests/cases/success/ (ticket TEST-1). Regenerar con `pytest --update-golden` y revisar el
-diff a mano antes de commitear (CLAUDE.md §7)."""
+"""Compara el TAC y la salida de cada programa de tests/cases/success/ con sus .tac/.out.
+
+Para regenerarlos: pytest --update-golden
+"""
 from __future__ import annotations
 
 from pathlib import Path

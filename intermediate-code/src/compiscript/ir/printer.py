@@ -1,7 +1,4 @@
-"""TACProgram -> texto .tac, en modo simbólico (nombres) y con direcciones (fp[-8], gp[4]).
-
-Ticket B-9. Ver docs/TAC_LANGUAGE.md §2 para la sintaxis impresa de cada instrucción.
-"""
+"""Convierte un TACProgram a texto, con nombres o con direcciones (fp[-8], gp[4])."""
 from __future__ import annotations
 
 from .instructions import OpCode, Quad
@@ -96,8 +93,7 @@ def _format_quad(q: Quad, addresses: bool) -> str:
 
 
 def print_program(program: TACProgram, addresses: bool = False) -> str:
-    """Renderiza un TACProgram completo. `addresses=True` imprime fp[off]/gp[off] en vez de
-    nombres simbólicos (ver CLAUDE.md §5.1)."""
+    """Con addresses=True imprime fp[off]/gp[off] en vez de los nombres."""
     lines: list[str] = []
 
     if program.strings:

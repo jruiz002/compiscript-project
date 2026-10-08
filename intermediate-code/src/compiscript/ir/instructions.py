@@ -1,7 +1,4 @@
-"""OpCode (Enum) y Quad (dataclass) del TAC.
-
-Diseño: docs/TAC_LANGUAGE.md §2 (tabla de instrucciones). Ticket B-1.
-"""
+"""Instrucciones del TAC: OpCode y Quad (cuádruplo)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -70,7 +67,7 @@ class OpCode(Enum):
     UPSTORE = auto()
 
 
-#: OpCodes que emiten un salto condicional relacional directo (`if y relop z goto L`).
+# saltos relacionales: if y relop z goto L
 RELATIONAL_JUMPS = {
     OpCode.IF_LT: OpCode.LT,
     OpCode.IF_LE: OpCode.LE,
@@ -80,7 +77,7 @@ RELATIONAL_JUMPS = {
     OpCode.IF_NE: OpCode.NE,
 }
 
-#: Operador relacional inverso (para negar una condición sin agregar instrucciones).
+# salto contrario de cada uno (para negar una condición)
 NEGATED_RELATIONAL = {
     OpCode.IF_LT: OpCode.IF_GE,
     OpCode.IF_LE: OpCode.IF_GT,
@@ -96,7 +93,7 @@ RELATIONAL_VALUE_OPS = {OpCode.EQ, OpCode.NE, OpCode.LT, OpCode.LE, OpCode.GT, O
 
 @dataclass
 class Quad:
-    """Una instrucción de TAC: `result = arg1 op arg2` (con variantes según `op`)."""
+    """Cuádruplo: result = arg1 op arg2."""
     op: OpCode
     arg1: Operand = None
     arg2: Operand = None

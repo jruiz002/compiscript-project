@@ -1,4 +1,4 @@
-"""Tests de if/while/do-while/for/foreach/switch/break/continue (tickets C-1, C-2)."""
+"""Tests de if/while/do-while/for/foreach/switch/break/continue."""
 from conftest import compile_ok, run_source
 
 
@@ -32,7 +32,7 @@ def test_nested_break_continue():
         "  }\n"
         "}\n"
     )
-    # para cada i: j=0 imprime i*10; j=1 continue; j=2 break -> solo un print por i
+    # solo se imprime j=0 en cada vuelta de i
     assert run_source(src) == "0\n10\n20\n"
 
 
@@ -65,8 +65,7 @@ def test_foreach_over_array():
 
 
 def test_or_condition_in_if_jumps_to_body_when_first_operand_is_true():
-    # regresion: con l_true=None (el `if` "cae" al cuerpo), un `||` cuyo primer operando era
-    # verdadero seguia evaluando el ultimo operando y tomaba la rama falsa
+    # si el primer operando del || es verdadero debe entrar al if
     src = (
         "let a: integer = 5;\n"
         "if (a > 1 || a > 100) { print(\"si\"); } else { print(\"no\"); }\n"
@@ -86,7 +85,7 @@ def test_or_condition_in_while_and_for():
 
 
 def test_and_condition_in_do_while_stops_when_first_operand_is_false():
-    # regresion simetrica: la condicion de un do-while "cae" en el caso falso (l_false=None)
+    # si el primer operando del && es falso el do-while debe terminar
     src = (
         "let i: integer = 0;\n"
         "do { i = i + 1; } while (i > 100 && i < 200);\n"
@@ -106,8 +105,7 @@ def test_relational_condition_uses_direct_jump_without_temporaries():
 
 
 def test_foreach_inside_function_block_does_not_clobber_locals():
-    # regresion: las variables ocultas del foreach (__arr/__idx/__len) se reservaban al
-    # generar TAC y reusaban los offsets de `x`/`y`, dando 10 en vez de 60
+    # las variables internas del foreach no deben pisar a x ni a y
     src = (
         "function total(a: integer[]): integer {\n"
         "  let s: integer = 0;\n"

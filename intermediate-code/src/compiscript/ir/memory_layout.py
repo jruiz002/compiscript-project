@@ -1,12 +1,4 @@
-"""Cálculo de layouts de clase/vtable (ticket A-4) y constantes de layout de arreglos usadas
-por ir.tac_generator (ticket B-7). Los offsets de variables/parámetros (locales, globales,
-registros de activación) se asignan en semantic/semantic_analyzer.py a medida que se declaran
-(ver ActivationRecord y GlobalAllocator en semantic/symbol_table.py); este módulo se limita a
-lo que solo puede resolverse una vez que TODAS las clases están registradas (herencia) y a
-fórmulas de acceso a memoria que pertenecen al nivel de IR, no de tabla de símbolos.
-
-Diseño: docs/TAC_LANGUAGE.md §3 (frame), §4 (clases), §2 (convención de acceso a arreglos).
-"""
+"""Layout de objetos en memoria (offsets de atributos y vtables) y header de arreglos."""
 from __future__ import annotations
 
 from typing import Dict
@@ -16,18 +8,13 @@ from ..semantic.types import ClassType
 
 __all__ = ["WORD_SIZE", "ARRAY_HEADER_SIZE", "compute_class_layouts"]
 
-#: Los arreglos guardan su longitud en un word al inicio; los elementos empiezan después.
+# los arreglos guardan su longitud en la primera palabra
 ARRAY_HEADER_SIZE = WORD_SIZE
 
 
 def compute_class_layouts(class_registry: Dict[str, ClassType]) -> None:
-    """Calcula field_offsets, instance_size, vtable y method_slots de cada ClassType,
-    procesando superclases antes que subclases (para que los atributos y slots heredados
-    conserven su offset/índice, ver CLAUDE.md §5.4).
-
-    Layout de instancia: slot 0 = puntero a vtable, luego los atributos (heredados primero,
-    en su offset original; luego los propios, en orden de declaración).
-    """
+    """Calcula offsets de atributos y vtable de cada clase. El padre se procesa primero para
+    que lo heredado conserve su offset. Slot 0 = puntero a vtable."""
     processed: set[str] = set()
 
     def process(ct: ClassType) -> None:

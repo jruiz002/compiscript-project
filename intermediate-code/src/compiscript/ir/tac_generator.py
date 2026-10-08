@@ -1,19 +1,8 @@
-"""Visitor principal que recorre el AST (hereda CompiscriptVisitor) y emite TAC.
+"""Generador de TAC: recorre el árbol ya validado por el semántico y emite cuádruplos.
 
-No vuelve a hacer análisis semántico: solo lee de `node_types` / `scope_of` / `symbol_of` y de
-la `SymbolTable`, ya llenadas por `SemanticAnalyzer` (CLAUDE.md §4). Cubre expresiones/
-variables/print (B-4, B-5), funciones y llamadas (B-6), control de flujo (C-1, C-2), arreglos
-y strings (B-7, B-8), clases/this/new/vcall (A-3), funciones anidadas (A-5) y try/catch (C-3).
-
-Reglas de reciclaje de temporales (docs/TAC_LANGUAGE.md §5): cada `_gen_*` libera los
-operandos que ya no necesita ANTES de pedir un temporal destino, así el destino puede reusar
-el índice recién liberado. Cada sentencia de nivel superior termina con `temps.live == 0`
-(verificado por un assert en `_gen_statement`).
-
-Supuestos documentados en docs/TAC_LANGUAGE.md §6: una función anidada puede llamarse desde
-cualquier punto donde sea visible (su padre, un hermano, ella misma); el static link que se
-le pasa es el frame de su padre léxico (ver `_static_link_for`). No hay funciones de primera
-clase (no se puede llamar a través de una variable).
+Usa node_types, scope_of y symbol_of del analizador, así que no repite el análisis.
+Los operandos se liberan antes de pedir el temporal destino para poder reusarlo, y al
+terminar cada sentencia no debe quedar ningún temporal vivo.
 """
 from __future__ import annotations
 
@@ -94,8 +83,7 @@ class TACGenerator:
         return self.current_function.emit(Quad(op, arg1, arg2, result, comment))
 
     def _leaf(self, value: Operand, dest: Optional[Operand]) -> Operand:
-        """Un operando ya calculado (literal/variable) que opcionalmente debe copiarse a
-        `dest` (optimización de destino: si no hay dest, no se emite ninguna instrucción)."""
+        """Copia value a dest si hay destino; si no, lo devuelve tal cual."""
         if dest is None or value == dest:
             return dest if dest is not None else value
         self._emit(OpCode.ASSIGN, value, None, dest)
@@ -109,10 +97,8 @@ class TACGenerator:
         return 0
 
     def _static_link_for(self, parent_ar: Optional[ActivationRecord]) -> Operand:
-        """Frame del padre léxico del callee, visto desde el frame actual. Si el callee es
-        hijo directo de la función actual es `fp`; si es hermano o se llama a sí mismo, hay
-        que subir k saltos por la cadena de static links (`up k-1, -4` lee el link del frame
-        que está k-1 saltos arriba, es decir, el frame k saltos arriba)."""
+        """Static link que hay que pasarle a la función: fp si es hija directa, si no se
+        sube por la cadena de static links."""
         hops = next((d for d, ar in enumerate(reversed(self._ar_chain)) if ar is parent_ar), 0)
         if hops == 0:
             return FP
@@ -295,9 +281,7 @@ class TACGenerator:
         self._emit(OpCode.LABEL, None, None, Label(l_end))
 
     def _gen_foreach(self, ctx: CompiscriptParser.ForeachStatementContext) -> None:
-        # Base/índice/longitud son variables locales ocultas (no temporales: deben sobrevivir
-        # todo el ciclo sin violar el assert `temps.live == 0` por sentencia, docs/
-        # TAC_LANGUAGE.md §5). Su offset ya lo reservó SemanticAnalyzer.visitForeachStatement.
+        # arreglo, índice y longitud van en locales (no temporales) porque duran todo el ciclo
         item_sym = self.symbol_of[ctx]
         array_local, index, length = (VarRef(s) for s in item_sym.extra["foreach_hidden"])
 
@@ -527,8 +511,7 @@ class TACGenerator:
         return t
 
     def _bool_to_str(self, value: Operand) -> Operand:
-        """Booleanos son 1/0 en TAC; al imprimirlos o concatenarlos se muestran como
-        "true"/"false" (semántica TS) con un salto, sin opcode extra."""
+        """Convierte un booleano (1/0) al string "true" o "false"."""
         self.temps.release(value)
         t = self.temps.new_temp()
         l_false = self.labels.new_label()
@@ -607,8 +590,7 @@ class TACGenerator:
         return self._leaf(Const(0), dest)  # null
 
     def _may_observe(self, ctx, dest: Operand) -> bool:
-        """¿Evaluar `ctx` podría leer `dest`? (lo menciona, o hace una llamada que podría
-        leerlo). Si sí, no se puede usar `dest` como destino antes de terminar de evaluar."""
+        """True si la expresión usa dest o hace alguna llamada."""
         if isinstance(ctx, CompiscriptParser.CallExprContext):
             return True
         if isinstance(dest, VarRef) and self.symbol_of.get(ctx) is dest.symbol:
@@ -619,8 +601,7 @@ class TACGenerator:
     def _gen_array_literal(self, ctx: CompiscriptParser.ArrayLiteralContext, dest) -> Operand:
         exprs = ctx.expression()
         if dest is not None and self._may_observe(ctx, dest):
-            # `a = [a[1], a[0]]`: construir el arreglo directamente en `a` haría que los
-            # elementos leyeran el arreglo nuevo (vacío); se arma en un temporal y se copia.
+            # ej. a = [a[1], a[0]]: se arma en un temporal para no leer el arreglo nuevo
             return self._leaf(self._gen_array_literal(ctx, None), dest)
         arr = dest if dest is not None else self.temps.new_temp()
         self._emit(OpCode.NEWARRAY, Const(len(exprs)), None, arr)
@@ -752,8 +733,7 @@ class TACGenerator:
             return result, self.types.get(suffix)
         if isinstance(suffix, CompiscriptParser.CallExprContext):
             raise NotImplementedError(
-                "Llamadas indirectas (a través de una variable/valor) no están soportadas; "
-                "ver docs/TAC_LANGUAGE.md §6."
+                "No se soportan llamadas a través de una variable."
             )
         raise AssertionError("suffixOp desconocido")
 
@@ -790,8 +770,7 @@ class TACGenerator:
         return obj
 
     def _gen_field_inits(self, class_type: Optional[ClassType], obj: Operand) -> None:
-        """Inicializadores de campos (`let x = 5;` / `const K = 2;` dentro de la clase): se
-        emiten en el sitio del `new`, antes del constructor, de la clase base a la derivada."""
+        """Valores iniciales de los atributos, antes del constructor (primero los del padre)."""
         if class_type is None:
             return
         self._gen_field_inits(class_type.superclass, obj)
@@ -855,7 +834,7 @@ class TACGenerator:
         self._emit(OpCode.VCALL, obj, Const(slot), result, comment=f".{method_name} n={n}")
         return result if result is not None else Const(0)
 
-    # --- Condiciones con cortocircuito (ticket C-1) ---
+    # --- Condiciones con cortocircuito ---
 
     def _gen_cond(self, ctx, l_true: Optional[str], l_false: Optional[str]) -> None:
         if isinstance(ctx, CompiscriptParser.ExpressionContext):
@@ -865,9 +844,7 @@ class TACGenerator:
         if isinstance(ctx, CompiscriptParser.TernaryExprContext) and not ctx.expression():
             return self._gen_cond(ctx.logicalOrExpr(), l_true, l_false)
         if isinstance(ctx, CompiscriptParser.LogicalOrExprContext) and len(ctx.logicalAndExpr()) > 1:
-            # Si algún operando (salvo el último) es verdadero, se salta directo a l_true; si
-            # el llamador quiere "caer" en el caso verdadero (l_true=None, p.ej. un `if`), ese
-            # salto necesita una etiqueta propia al final de toda la condición.
+            # si un operando es verdadero se salta a l_true (o al final si l_true es None)
             operands = ctx.logicalAndExpr()
             l_after = None if l_true is not None else self.labels.new_label()
             for operand in operands[:-1]:
@@ -877,8 +854,7 @@ class TACGenerator:
                 self._emit(OpCode.LABEL, None, None, Label(l_after))
             return None
         if isinstance(ctx, CompiscriptParser.LogicalAndExprContext) and len(ctx.equalityExpr()) > 1:
-            # Simétrico al `||`: el primer operando falso salta a l_false (o al final, si el
-            # llamador quiere caer en el caso falso, p.ej. la condición de un do-while).
+            # igual que ||, pero saltando a l_false con el primer operando falso
             operands = ctx.equalityExpr()
             l_after = None if l_false is not None else self.labels.new_label()
             for operand in operands[:-1]:
@@ -909,9 +885,8 @@ class TACGenerator:
 
     @staticmethod
     def _cond_passthrough(ctx):
-        """Hijo único de un nodo que no aporta operador (p.ej. `if (a < b)` llega como
-        LogicalOr -> LogicalAnd -> Equality -> Relational, o `(...)` entre paréntesis), para
-        que `_gen_cond` llegue al nodo que sí sabe generar saltos. None si no aplica."""
+        """Si el nodo solo envuelve a un hijo (sin operador) o es un paréntesis, devuelve el
+        hijo; si no, None."""
         P = CompiscriptParser
         if isinstance(ctx, P.LogicalOrExprContext) and len(ctx.logicalAndExpr()) == 1:
             return ctx.logicalAndExpr(0)
