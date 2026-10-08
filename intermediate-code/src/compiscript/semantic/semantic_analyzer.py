@@ -355,9 +355,27 @@ class SemanticAnalyzer(CompiscriptVisitor):
             self.symbol_of[param_ctx] = psym
 
         self._visit_block_dead_code(ctx.block())
+        if (ret_type.kind not in (TypeKind.VOID, TypeKind.ERROR) and not is_constructor
+                and not self._always_returns(ctx.block().statement())):
+            self._err(ctx, f"Function '{name}' must return a value of type '{ret_type}' on every path")
         self.symbols.exit_scope()
         self._in_constructor = prev_in_constructor
         return func_type
+
+    def _always_returns(self, statements) -> bool:
+        """True si toda ruta por `statements` termina en `return`.
+        ponytail: loops y switch cuentan como "puede no retornar" (conservador, como TS sin
+        análisis de `while (true)`); agregarlos si algún caso real lo pide."""
+        for stmt in statements:
+            if stmt.returnStatement():
+                return True
+            if stmt.block() and self._always_returns(stmt.block().statement()):
+                return True
+            branches = (stmt.ifStatement() or stmt.tryCatchStatement())
+            if branches and len(branches.block()) == 2 and all(
+                    self._always_returns(b.statement()) for b in branches.block()):
+                return True
+        return False
 
     def _visit_block_dead_code(self, block_ctx):
         """Visit statements in a block, warn on unreachable code."""
