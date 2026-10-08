@@ -39,3 +39,14 @@ def test_len_builtin_via_foreach_visits_every_element():
     src = "let a: integer[] = [1, 2, 3, 4];\nlet total: integer = 0;\n" \
           "foreach (n in a) { total = total + n; }\nprint(total);\n"
     assert run_source(src) == "10\n"
+
+
+def test_reassigning_array_literal_that_reads_the_same_variable():
+    # regresion: la optimizacion de destino creaba el arreglo nuevo directo en `a` antes de
+    # leer `a[2]`/`a[0]` (que entonces leian el arreglo nuevo -> indice fuera de rango)
+    src = (
+        "let a: integer[] = [3, 1, 2];\n"
+        "a = [a[2], a[0]];\n"
+        "print(a[0]); print(a[1]);\n"
+    )
+    assert run_source(src) == "2\n3\n"
