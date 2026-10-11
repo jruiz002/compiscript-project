@@ -325,5 +325,10 @@ toda la función, por lo que `max_temps = 1` y `frame_size = 4 (slot del static 
 - **Funciones anidadas:** se pueden invocar desde cualquier punto donde son visibles (padre,
   hermanos, ellas mismas, funciones más anidadas); el static link siempre apunta al padre
   léxico (ver §6).
+- **Llamadas solo por nombre:** se llama a una función por su nombre (`f(x)`) o a un método
+  sobre un objeto (`obj.m(x)`). Guardar una función en una variable y llamarla a través de ella
+  (`let g = f; g(x);`) se rechaza en el análisis semántico, porque el TAC no tiene una
+  instrucción para llamar a una función guardada en una variable: `call` recibe una etiqueta
+  fija y `vcall` solo despacha métodos por la vtable.
 - **`VCALL` no lleva `n` como operando** (ver nota en §2): se infiere en tiempo de ejecución
   vaciando la cola de `param` pendientes.

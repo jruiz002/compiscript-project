@@ -817,11 +817,30 @@ class SemanticAnalyzer(CompiscriptVisitor):
     # --- LeftHandSide ---
 
     def visitLeftHandSide(self, ctx: CompiscriptParser.LeftHandSideContext):
-        current_type = self.visit(ctx.primaryAtom())
-        for suffix in ctx.suffixOp():
+        atom = ctx.primaryAtom()
+        current_type = self.visit(atom)
+        prev_suffix, prev_type = None, None
+        for i, suffix in enumerate(ctx.suffixOp()):
+            if (isinstance(suffix, CompiscriptParser.CallExprContext)
+                    and (isinstance(current_type, FunctionType) or current_type.kind == TypeKind.ANY)
+                    and not self._is_direct_call(atom, i, prev_suffix, prev_type)):
+                self._err(suffix, "Calling a function through a variable or expression is not "
+                                  "supported; call the function or method by name")
+            prev_suffix, prev_type = suffix, current_type
             current_type = self._apply_suffix(suffix, current_type)
             self.node_types[suffix] = current_type
         return current_type
+
+    def _is_direct_call(self, atom, i, prev_suffix, prev_type) -> bool:
+        """Mismos casos que soporta TACGenerator._gen_left_hand_side: `f(...)` con f una
+        función declarada, u `obj.metodo(...)`."""
+        if i == 0:
+            sym = self.symbol_of.get(atom)
+            return (isinstance(atom, CompiscriptParser.IdentifierExprContext)
+                    and sym is not None and sym.kind == SymbolKind.FUNCTION)
+        return (isinstance(prev_suffix, CompiscriptParser.PropertyAccessExprContext)
+                and isinstance(prev_type, ClassType)
+                and isinstance(prev_type.resolve_member(prev_suffix.Identifier().getText()), FunctionType))
 
     def _apply_suffix(self, suffix, obj_type) -> CompiscriptType:
         if isinstance(suffix, CompiscriptParser.CallExprContext):
